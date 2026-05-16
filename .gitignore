@@ -1,0 +1,26 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.so
+*.dylib
+
+# Compiled C++ binaries (built by setup.py)
+src/janas/bin/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+.janas_env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
