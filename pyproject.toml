@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+# Build for CPython 3.8–3.12 on Linux and macOS
+build = "cp38-* cp39-* cp310-* cp311-* cp312-*"
+skip = "*-musllinux_i686 *-manylinux_i686 pp*"
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y cmake gcc-c++ || apt-get update && apt-get install -y cmake g++"
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+[tool.cibuildwheel.windows]
+# Windows requires CMake on PATH; GitHub Actions runners have it pre-installed
+archs = ["AMD64"]
