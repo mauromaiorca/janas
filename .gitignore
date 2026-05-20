@@ -22,5 +22,8 @@ __pycache__/
 .vscode/
 *.swp
 
+# MkDocs build output
+site/
+
 # OS
 .DS_Store

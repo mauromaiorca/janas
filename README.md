@@ -4,39 +4,71 @@
 
 <h1 align="center">JANAS</h1>
 <p align="center"><strong>Joint ANAlysis of Stacks for CryoEM</strong></p>
+<p align="center">Per-particle scoring and classification for single-particle cryo-EM</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/janas/"><img src="https://img.shields.io/pypi/v/janas" alt="PyPI"></a>
+  <a href="https://pypi.org/project/janas/"><img src="https://img.shields.io/pypi/pyversions/janas" alt="Python"></a>
+  <a href="https://github.com/mauromaiorca/janas/blob/main/LICENSE"><img src="https://img.shields.io/github/license/mauromaiorca/janas" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="#installation">Installation</a> &bull;
+  <a href="#quick-start">Quick start</a> &bull;
+  <a href="tutorial/README.md">Tutorial</a> &bull;
+  <a href="tutorial/INSTALL_FROM_SOURCE.md">Build from source</a>
+</p>
 
 ---
 
-JANAS is a command-line toolkit for iterative particle scoring and classification in single-particle cryo-EM. It uses per-particle Structural Cross-correlation Index (SCI) to rank and select those images that contribute most to local map quality, and to reassign particles to pre-computed 3D conformations to resolve heterogeneity. By focusing each reconstruction on high-quality, class-specific subsets, JANAS refines the final maps and enhances the reliability of downstream model building.
+JANAS uses the Structural Cross-correlation Index (SCI) to rank particles by their contribution to local map quality.
+It supports two workflows:
 
-## Quick start
+- **Iterative particle selection** — score, rank, and select the subset that maximises local resolution.
+- **3D class reassignment** — assign particles to pre-computed conformations based on per-map SCI scores.
+
+```mermaid
+flowchart LR
+    A[Particles\n+ half-maps] --> B{Workflow}
+    B -->|Selection| C[Score particles\nby SCI]
+    C --> D[Rank and\nsubset]
+    D --> E[Reconstruct\nsubsets]
+    E --> F[Evaluate local\nresolution]
+    F -->|iterate| C
+    F --> G[Optimal\nsubset]
+    B -->|Classification| H[Equalise\namplitudes]
+    H --> I[Score against\neach map]
+    I --> J[Assign to\nbest class]
+    J --> K[Per-class\nreconstructions]
+```
+
+## Installation
+
+Requires Python 3.8+, a C++ compiler, and CMake 3.10+.
 
 ```bash
 pip install janas
-janas --version
 ```
 
-For detailed installation instructions (including environment setup, prerequisites, and troubleshooting), see the [Installation Guide](tutorial/INSTALL.md).
+We recommend installing in an isolated environment:
 
-## Documentation
+```bash
+python3 -m venv ~/.janas_env
+source ~/.janas_env/bin/activate
+pip install janas
+```
 
-- [Installation Guide](tutorial/INSTALL.md) — install from PyPI, manage environments, troubleshooting
-- [Install from source](tutorial/INSTALL_FROM_SOURCE.md) — build from repository, C++ apps reference
-- [Tutorial](tutorial/README.md) — step-by-step example on EMPIAR-10308
-- [Common Operations](tutorial/COMMON_OPERATIONS.md) — quick reference
-- [Accessory Programs](tutorial/accessory_programs.md) — third-party dependencies
-- [CryoSPARC Integration](tutorial/cs_integration.md) — importing from cryoSPARC
-- [Computational Requirements](tutorial/computational_requirements.md) — hardware and performance
+Verify:
 
-## Prepare your dataset
+```bash
+janas --version
+janas_app_starProcess --h
+```
 
-JANAS operates on the standard RELION 3.1 STAR+MRC(S) format: a `.star` file listing the particles and one or more `.mrcs` stacks where each 2D image is a particle.
+See the [Installation Guide](tutorial/INSTALL.md) for conda, pipx, and troubleshooting.
+To build from source, see [Install from source](tutorial/INSTALL_FROM_SOURCE.md).
 
-If you are coming from cryoSPARC, first export your particles as a stack and generate a RELION STAR file ([details here](tutorial/import_stack_from_cs.md)).
-
-Use `janas_app_starProcess` to inspect and manipulate STAR files: randomize or reassign subsets, delete/rename/reorder labels, filter particles, and export to CSV/VEM formats.
-
-## Key commands
+## Quick start
 
 ### Iterative particle selection
 
@@ -47,41 +79,68 @@ janas_session_manager new_select_session \
     --map halfA.mrc \
     --map2 halfB.mrc \
     --mask mask.mrc \
-    --angpix 0.84
+    --mpi 40
 
 ./my_selection/my_selection_run.sh
 ```
+
+The output star file is at `my_selection/reference_subset.star`.
 
 ### 3D class reassignment
 
 ```bash
 janas_session_manager classification_session \
-    --name reclassification \
+    --name reclassify \
     --particles particles.star \
-    --mask mask.mrc \
     --maps class1.mrc class2.mrc class3.mrc \
-    --angpix 0.84 \
-    --mpi 85
-
-./reclassification/reclassification_run.sh
-```
-
-### Random particle selection (control experiment)
-
-```bash
-janas_session_manager random_selection_session \
-    --name random_control \
-    --particles particles.star \
     --mask mask.mrc \
-    --dir output_dir
+    --mpi 40
 
-./output_dir/random_control_run.sh
+./reclassify/reclassify_run.sh
 ```
+
+Per-class star files and reconstructions are in `reclassify/final_classes/`.
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `janas` | Particle scoring, selection, Euler histograms |
+| `janas_utils` | Masks, crops, FSC, local resolution, half-map randomisation, cryoSPARC import |
+| `janas_session_manager` | Create selection and classification sessions |
+| `janas_reconstructor` | 3D reconstruction from scored particles |
+| `janas_optimizer` | Overview analysis and optimisation plots |
+| `janas_app_starProcess` | STAR file inspection and manipulation (C++) |
+| `janas_app_meanMinMax` | Local resolution statistics from masked maps (C++) |
+
+## External dependencies
+
+Some features rely on third-party programs that must be on your `PATH`:
+
+- [RELION](https://relion.eu/) — local-resolution estimation, 3D reconstruction (when not using `--noExternalPrograms`)
+- [IMOD](https://bio3d.colorado.edu/imod/) — volume processing
+- [pyem](https://doi.org/10.5281/zenodo.3576630) — legacy cryoSPARC import (not needed for `janas_utils csparc2star-stack`)
+
+## Documentation
+
+- [Installation Guide](tutorial/INSTALL.md)
+- [Install from source](tutorial/INSTALL_FROM_SOURCE.md)
+- [Tutorial (EMPIAR-10308)](tutorial/README.md)
+- [Common operations](tutorial/COMMON_OPERATIONS.md)
+- [CryoSPARC integration](tutorial/cs_integration.md)
+- [Importing from cryoSPARC](tutorial/import_stack_from_cs.md)
+- [Computational requirements](tutorial/computational_requirements.md)
+
+## Citation
+
+If you use JANAS in published work, please cite:
+
+> Maiorca, M. *et al.* (2025). JANAS: Joint Analysis of Stacks for CryoEM. *In preparation.*
 
 ## Contact
 
-For questions or issues, reach out at mauro.maiorca@cssb-hamburg.de or open an issue on [GitHub](https://github.com/mauromaiorca/janas/issues).
+For questions or issues: mauro.maiorca@cssb-hamburg.de or open an issue on [GitHub](https://github.com/mauromaiorca/janas/issues).
 
-## License
+## Licence
 
-MIT
+[MIT](LICENSE)

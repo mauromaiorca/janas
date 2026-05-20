@@ -1,0 +1,46 @@
+# Troubleshooting
+
+## Installation issues
+
+| Problem | Solution |
+|---------|----------|
+| `pip: command not found` | Use `pip3` or `python3 -m pip` |
+| `externally-managed-environment` on macOS | Install in a venv or use pipx. See [Installation](installation.md). |
+| CMake or compiler errors during install | Ensure `cmake` and `g++` (Linux) or `clang++` (macOS) are installed |
+| Commands not found after pipx install | Run `pipx ensurepath` and restart your terminal |
+| `janas_app_starProcess` not found | The C++ apps were not compiled. Reinstall with `pip install janas` or build from source. |
+
+## Runtime issues
+
+### RELION commands not found
+
+If you see errors about `relion_reconstruct` or `relion_postprocess` not being found, either:
+
+- Install RELION and ensure it is on your `PATH`, or
+- Use `--noExternalPrograms` to run JANAS without external dependencies (requires a GPU for reasonable performance on large datasets)
+
+### Out of GPU memory
+
+Reduce `--gpu-batch` (default 20). For very large box sizes (B > 350), values of 5-10 may be needed.
+
+### Scoring is slow
+
+- Increase `--mpi` to use more CPU cores (up to ~80).
+- Check that the particle stack is on fast storage (SSD preferred).
+- Scoring is CPU-only; more cores directly reduces wall-clock time.
+
+### Stack file not found during selection
+
+The run script expects the particle stack to be accessible from the session directory. Create a symbolic link:
+
+```bash
+ln -s /absolute/path/to/particles.mrcs session_directory/
+```
+
+### Particle count mismatch with `update_from_csparc`
+
+The `.cs` file and STAR file must contain the same number of particles in the same order. Check for trailing blank lines in the STAR file's `data_particles` section and remove them.
+
+## Getting help
+
+Open an issue on [GitHub](https://github.com/mauromaiorca/janas/issues) or contact mauro.maiorca@cssb-hamburg.de.
