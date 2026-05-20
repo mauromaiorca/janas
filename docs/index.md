@@ -13,26 +13,6 @@ JANAS is a command-line toolkit for particle ranking, subset selection and class
 - **Iterative particle selection** — scores particles against reference half-maps, ranks them by SCI, and iteratively determines the subset that maximises mean local resolution within a defined mask.
 - **3D class reassignment** — scores particles against multiple amplitude-equalised reference maps, assigns each particle to the map with the highest SCI, and reconstructs per-class volumes.
 
-```mermaid
-flowchart TD
-    subgraph Selection["Iterative particle selection"]
-        S1[Score particles by SCI] --> S2[Rank and create subsets]
-        S2 --> S3[Reconstruct each subset]
-        S3 --> S4[Evaluate local resolution]
-        S4 -->|next iteration| S1
-        S4 --> S5[Output: optimal particle subset]
-    end
-
-    subgraph Classification["3D class reassignment"]
-        C1[Equalise amplitudes across maps] --> C2[Score particles against each map]
-        C2 --> C3[Assign each particle to best-matching class]
-        C3 --> C4[Reconstruct per-class volumes]
-    end
-
-    input[Particles + maps + mask] --> Selection
-    input --> Classification
-```
-
 ## Getting started
 
 1. [Install JANAS](installation.md)

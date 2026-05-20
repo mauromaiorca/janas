@@ -15,15 +15,6 @@ Class reassignment scores particles against multiple reference maps and assigns 
 
 This is a single-pass workflow (no iterations).
 
-```mermaid
-flowchart TD
-    A[K reference maps] --> B[Equalise amplitudes]
-    B --> C[Score each particle against all K maps]
-    C --> D[Assign particle to highest-scoring class]
-    D --> E[Reconstruct per-class half-maps]
-    E --> F[Per-class star files + volumes]
-```
-
 ## Setting up a session
 
 ```bash

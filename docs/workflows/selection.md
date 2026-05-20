@@ -20,18 +20,6 @@ Each iteration performs the following steps:
 
 The loop repeats until no further improvement is observed (controlled by `num_unimproving_iterations_for_early_termination`, default 3).
 
-```mermaid
-flowchart TD
-    A[Randomise half-map assignments] --> B[Reconstruct bootstrap half-maps]
-    B --> C[Score all particles by SCI]
-    C --> D[Create ranked subsets at different cutoffs]
-    D --> E[Reconstruct each subset]
-    E --> F[Compute local resolution for each subset]
-    F --> G{Improvement?}
-    G -->|Yes| A
-    G -->|No, after N iterations| H[Output best subset]
-```
-
 ## Setting up a session
 
 ```bash
