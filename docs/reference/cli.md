@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [STAR operations](star-operations.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # CLI commands
 
 JANAS installs seven command-line programs. This page lists each command and its primary subcommands.
@@ -185,3 +189,7 @@ janas_app_meanMinMax locresMap.mrc mask.mrc
 ```
 
 Returns the mean, minimum, and maximum resolution values within the mask.
+
+---
+
+[Back to documentation index](../index.md)

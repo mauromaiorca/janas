@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [CLI reference](../reference/cli.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # CryoSPARC integration
 
 JANAS operates on RELION-style STAR files. This page covers how to import particle data from cryoSPARC and how to use cryoSPARC's local NU-refinement within a JANAS session.
@@ -29,23 +33,30 @@ The resulting files can be used directly in JANAS or imported into RELION.
 If you prefer scripting, the manual procedure involves:
 
 1. **Convert `.cs` to STAR** using pyem or `janas_utils csparc2star`:
-   ```bash
-   janas_utils csparc2star particles.cs particles.star
-   ```
+
+    ```bash
+    janas_utils csparc2star particles.cs particles.star
+    ```
+
 2. **Create `.mrcs` symlinks** — cryoSPARC uses `.mrc` for stacks; RELION requires `.mrcs`:
-   ```bash
-   for f in /path/to/extract/*.mrc; do
-       ln -s "$f" "$(dirname "$f")/$(basename "$f" .mrc).mrcs"
-   done
-   ```
+
+    ```bash
+    for f in /path/to/extract/*.mrc; do
+        ln -s "$f" "$(dirname "$f")/$(basename "$f" .mrc).mrcs"
+    done
+    ```
+
 3. **Update the STAR file** to reference `.mrcs` filenames:
-   ```bash
-   sed -i 's/_particles\.mrc /_particles.mrcs /g' particles.star
-   ```
+
+    ```bash
+    sed -i 's/_particles\.mrc /_particles.mrcs /g' particles.star
+    ```
+
 4. **Create a single stack** (optional but recommended):
-   ```bash
-   relion_stack_create --i particles.star --o full_stack --one_by_one
-   ```
+
+    ```bash
+    relion_stack_create --i particles.star --o full_stack --one_by_one
+    ```
 
 ## Updating metadata from cryoSPARC
 
@@ -90,3 +101,7 @@ janas_utils csparc_localnurefinement \
 ```
 
 This adds 15-60 minutes per iteration depending on particle count and GPU hardware. It is skipped automatically when the previous iteration showed no improvement.
+
+---
+
+[Back to documentation index](../index.md)

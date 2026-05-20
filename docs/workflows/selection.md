@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [CLI reference](../reference/cli.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # Iterative particle selection
 
 Particle selection ranks particles by their Structural Cross-correlation Index (SCI) and iteratively determines the subset that maximises mean local resolution within a defined mask.
@@ -112,3 +116,7 @@ By default, JANAS uses RELION for reconstruction. To use the internal GPU recons
 ```
 
 This removes the dependency on RELION and typically provides 5-20x speedup for reconstruction. See [Computational requirements](../reference/computational-requirements.md) for hardware guidance.
+
+---
+
+[Back to documentation index](../index.md)

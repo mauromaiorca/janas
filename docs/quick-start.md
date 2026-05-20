@@ -1,3 +1,7 @@
+[Repository home](../README.md) · [Docs home](index.md) · [Installation](installation.md) · [CLI reference](reference/cli.md) · [Troubleshooting](troubleshooting.md)
+
+---
+
 # Quick start
 
 This page covers the minimum steps to run each workflow. For a complete worked example, see the [EMPIAR-10308 tutorial](examples/empiar-10308.md).
@@ -68,3 +72,7 @@ janas_app_starProcess --i particles.star --info
 ```
 
 This prints the number of particles, column labels, and subset distribution.
+
+---
+
+[Back to documentation index](index.md)
