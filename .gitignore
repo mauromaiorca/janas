@@ -6,7 +6,7 @@ dist/
 *.dylib
 
 # Compiled C++ binaries (built by setup.py)
-src/janas/bin/
+src/cryojanas/bin/
 
 # Python
 __pycache__/
@@ -14,7 +14,7 @@ __pycache__/
 *.pyo
 
 # Virtual environments
-.janas_env/
+.cryojanas_env/
 .venv/
 
 # IDE
