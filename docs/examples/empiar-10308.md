@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [CLI reference](../reference/cli.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # EMPIAR-10308: Serotonin 5-HT1B-Go receptor complex
 
 This tutorial demonstrates both JANAS workflows — 3D class reassignment followed by per-class particle selection — on the serotonin 5-HT1B-Go receptor complex dataset (EMPIAR-10308).
@@ -155,4 +159,6 @@ This tutorial demonstrated:
 1. **Class reassignment** with two reference maps, separating 244k particles into two structurally distinct classes (217k and 28k particles).
 2. **Per-class particle selection** to further refine each class by removing particles that degrade local map quality.
 
-The combination of both workflows resolves low-populated conformational states and improves the reliability of downstream model building.
+---
+
+[Back to documentation index](../index.md)

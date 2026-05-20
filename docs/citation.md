@@ -1,3 +1,7 @@
+[Repository home](../README.md) · [Docs home](index.md) · [Installation](installation.md) · [Quick start](quick-start.md)
+
+---
+
 # Citation
 
 If you use JANAS in published work, please cite:
@@ -13,11 +17,14 @@ A `CITATION.cff` file is included in the repository for automated citation tools
   author    = {Maiorca, Mauro},
   title     = {{JANAS}: Joint ANAlysis of Stacks for CryoEM},
   year      = {2025},
-  url       = {https://github.com/mauromaiorca/janas},
-  license   = {MIT}
+  url       = {https://github.com/mauromaiorca/janas}
 }
 ```
 
 ## Third-party software
 
 If your analysis uses RELION, IMOD, or pyem through JANAS, please also cite those tools according to their respective guidelines.
+
+---
+
+[Back to documentation index](index.md)

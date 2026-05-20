@@ -1,8 +1,12 @@
+[Repository home](../README.md) · [Installation](installation.md) · [Quick start](quick-start.md) · [CLI reference](reference/cli.md) · [Troubleshooting](troubleshooting.md)
+
+---
+
 # JANAS
 
 **Joint ANAlysis of Stacks for CryoEM**
 
-JANAS is a command-line toolkit for iterative particle scoring and classification in single-particle cryo-EM. It uses the per-particle Structural Cross-correlation Index (SCI) to rank and select particles that contribute most to local map quality, and to reassign particles to pre-computed 3D conformations.
+JANAS is a command-line toolkit for particle ranking, subset selection and class reassignment in single-particle cryo-EM workflows. It uses the per-particle Structural Cross-correlation Index (SCI) to rank and select particles that contribute most to local map quality, and to reassign particles to pre-computed 3D conformations.
 
 ## What JANAS does
 

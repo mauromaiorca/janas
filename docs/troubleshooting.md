@@ -1,3 +1,7 @@
+[Repository home](../README.md) · [Docs home](index.md) · [Installation](installation.md) · [Quick start](quick-start.md) · [CLI reference](reference/cli.md)
+
+---
+
 # Troubleshooting
 
 ## Installation issues
@@ -44,3 +48,7 @@ The `.cs` file and STAR file must contain the same number of particles in the sa
 ## Getting help
 
 Open an issue on [GitHub](https://github.com/mauromaiorca/janas/issues) or contact mauro.maiorca@cssb-hamburg.de.
+
+---
+
+[Back to documentation index](index.md)
