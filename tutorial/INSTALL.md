@@ -1,48 +1,67 @@
-# Installation Guide
+# JANAS Installation Guide
 
-## Prerequisites
+## Quick install from PyPI
+
+```bash
+pip install janas
+```
+
+This downloads, compiles, and installs everything: Python modules, C++ extension, and standalone C++ apps.
+
+### Prerequisites
 
 - Python 3.8+
-- C++ compiler (GCC or Clang)
+- C++ compiler (GCC on Linux, Clang on macOS)
 - CMake 3.10+
-- [Optional] pipx for isolated global install
 
-## Quick Install (recommended)
-
-The simplest way to install JANAS with all components (Python package + C++ apps):
-
+On Ubuntu/WSL2:
 ```bash
-pipx install /path/to/janas/v1.0.0
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv g++ cmake
 ```
 
-This installs everything in an isolated environment under `~/.local/pipx/venvs/janas/` and makes all commands globally available in `~/.local/bin/` — no environment activation needed.
+On macOS (Homebrew):
+```bash
+brew install cmake
+xcode-select --install   # provides the C++ compiler
+```
 
-If you don't have pipx:
+### Setting up an environment
+
+We recommend installing JANAS in an isolated environment to avoid conflicts with other packages.
+
+**Using venv** (must activate each time you open a terminal):
+```bash
+python3 -m venv ~/.janas_env
+source ~/.janas_env/bin/activate
+pip install janas
+```
+
+To activate in future sessions:
+```bash
+source ~/.janas_env/bin/activate
+```
+
+To deactivate:
+```bash
+deactivate
+```
+
+**Using pipx** (commands always available, no activation needed):
 ```bash
 pip install pipx
-pipx ensurepath
+pipx ensurepath       # restart your terminal after this
+pipx install janas
 ```
 
-## Alternative: Install in a virtual environment
-
-If you prefer a virtual environment (e.g. for development):
-
+**Using conda:**
 ```bash
-git clone https://gitlab.com/topf-lab/janas.git
-cd janas
-
-python -m venv .janas_env
-source .janas_env/bin/activate
-
-pip install .
+conda create -n janas python=3.11
+conda activate janas
+pip install janas
 ```
 
-For development (editable install):
-```bash
-pip install -e .
-```
-
-## Verify the installation
+### Verify
 
 ```bash
 janas --version
@@ -51,30 +70,24 @@ janas_app_starProcess
 janas_app_meanMinMax
 ```
 
-You should see version numbers and usage messages.
-
-## Uninstall
+### Uninstall
 
 ```bash
-# If installed with pipx:
-pipx uninstall janas
-
-# If installed with pip:
-pip uninstall janas
+pip uninstall janas        # if installed with pip
+pipx uninstall janas       # if installed with pipx
 ```
 
-## What gets installed
+### Troubleshooting
 
-A single `pip install` (or `pipx install`) compiles and installs everything:
-
-| Command | Description |
+| Problem | Solution |
 |---|---|
-| `janas` | Main CLI (scoring, selection, classification) |
-| `janas_utils` | Utility commands (masks, crops, FSC, local resolution) |
-| `janas_optimizer` | Optimization and overview tools |
-| `janas_session_manager` | Session creation and management |
-| `janas_reconstructor` | 3D reconstruction |
-| `janas_app_starProcess` | STAR file manipulation (C++) |
-| `janas_app_meanMinMax` | Local resolution statistics (C++) |
+| `pip: command not found` | Use `pip3` or `python3 -m pip` |
+| `externally-managed-environment` on macOS | Use a venv or pipx (see above) |
+| CMake or compiler errors | Make sure `cmake` and `g++`/`clang++` are installed |
+| Commands not found after pipx | Run `pipx ensurepath` and restart your terminal |
 
-No separate CMake step is needed — the C++ apps are compiled automatically during installation.
+---
+
+## Install from source
+
+If you need the latest development version or want to modify the code, see [INSTALL_FROM_SOURCE.md](INSTALL_FROM_SOURCE.md).
