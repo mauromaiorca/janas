@@ -1,4 +1,11 @@
-# JANAS
+<p align="center">
+  <img src="tutorial/general_images/janasLogo.png" alt="JANAS logo" width="400">
+</p>
+
+<h1 align="center">JANAS</h1>
+<p align="center"><strong>Joint ANAlysis of Stacks for CryoEM</strong></p>
+
+---
 
 JANAS is a command-line toolkit for iterative particle scoring and classification in single-particle cryo-EM. It uses per-particle Structural Cross-correlation Index (SCI) to rank and select those images that contribute most to local map quality, and to reassign particles to pre-computed 3D conformations to resolve heterogeneity. By focusing each reconstruction on high-quality, class-specific subsets, JANAS refines the final maps and enhances the reliability of downstream model building.
 
