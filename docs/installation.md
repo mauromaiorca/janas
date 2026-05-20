@@ -1,3 +1,7 @@
+[Repository home](../README.md) · [Docs home](index.md) · [Quick start](quick-start.md) · [CLI reference](reference/cli.md) · [Troubleshooting](troubleshooting.md)
+
+---
+
 # Installation
 
 ## Prerequisites
@@ -120,3 +124,7 @@ With `--noExternalPrograms`, JANAS uses its own GPU/CPU reconstruction and local
 | `externally-managed-environment` on macOS | Use a venv or pipx (see above) |
 | CMake or compiler errors | Ensure `cmake` and `g++`/`clang++` are installed |
 | Commands not found after pipx | Run `pipx ensurepath` and restart your terminal |
+
+---
+
+[Back to documentation index](index.md)

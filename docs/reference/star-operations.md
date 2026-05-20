@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [CLI reference](cli.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # STAR file operations
 
 JANAS reads and writes RELION 3.1 STAR files. This page covers the tools for inspecting and manipulating STAR file contents.
@@ -92,3 +96,7 @@ JANAS adds custom columns to STAR files during processing:
 | `_janas_csparc_rlnImageName` | Original cryoSPARC image name (provenance) |
 
 For backward compatibility, JANAS also reads columns with the `_emprove_` prefix (the project's former name). New output always uses the `_janas_` prefix.
+
+---
+
+[Back to documentation index](../index.md)

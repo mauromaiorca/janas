@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [CLI reference](cli.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # Computational requirements
 
 ## Hardware requirements
@@ -116,3 +120,7 @@ Two benchmark scripts are provided in `benchmarks/`:
 ```
 
 Both scripts output CSV files and print formatted summary tables.
+
+---
+
+[Back to documentation index](../index.md)

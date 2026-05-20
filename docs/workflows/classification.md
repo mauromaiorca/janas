@@ -1,3 +1,7 @@
+[Repository home](../../README.md) · [Docs home](../index.md) · [Installation](../installation.md) · [Quick start](../quick-start.md) · [CLI reference](../reference/cli.md) · [Troubleshooting](../troubleshooting.md)
+
+---
+
 # 3D class reassignment
 
 Class reassignment scores particles against multiple reference maps and assigns each particle to the class with the highest Structural Cross-correlation Index (SCI).
@@ -107,3 +111,7 @@ janas eulerHist --i final_classes/class_1.star
 ## Combining with particle selection
 
 After class reassignment, each class-specific stack may still contain particles that degrade local map quality. Run iterative particle selection on each class separately to further refine the reconstructions. See the [EMPIAR-10308 tutorial](../examples/empiar-10308.md) for a worked example of this combined workflow.
+
+---
+
+[Back to documentation index](../index.md)
