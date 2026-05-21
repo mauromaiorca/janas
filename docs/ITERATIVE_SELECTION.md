@@ -25,12 +25,12 @@ janas_session_manager new_select_session \
     --map2 halfB.mrc \
     --mask mask.mrc \
     --mpi 40 \
-    --noExternalPrograms
+    --noExternalPrograms --gpu 0 1
 
 ./my_selection/my_selection_run.sh
 ```
 
-> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
+> **Note on `--noExternalPrograms` and `--gpu`:** with `--noExternalPrograms`, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies). `--gpu 0 1` distributes reconstruction across two GPUs (one per half-map) and gives the best throughput; use `--gpu 0` for a single GPU, or omit `--gpu` entirely to run on CPU only — JANAS still works without a GPU. Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
 
 ## About `--mpi`
 

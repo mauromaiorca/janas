@@ -49,10 +49,10 @@ janas_session_manager classification_session \
             --maps reference_Refined_rec.mrc J958_003_volume_mapAligned.mrc \
             --mask maskFull_dilatedClose.mrc \
             --mpi 85 \
-            --noExternalPrograms
+            --noExternalPrograms --gpu 0 1
 ```
 
-> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
+> **Note on `--noExternalPrograms` and `--gpu`:** with `--noExternalPrograms`, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies). `--gpu 0 1` distributes reconstruction across two GPUs (one per half-map) and gives the best throughput; use `--gpu 0` for a single GPU, or omit `--gpu` entirely to run on CPU only — JANAS still works without a GPU. Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
 this will create a working directory, with all the necessary informations and settings for running JANAS 3D class reassingment. The tree of the directory is:
 
 ```
@@ -153,7 +153,7 @@ janas_session_manager new_select_session \
     --mask ../../maskFull_dilatedClose.mrc \
     --sigma 1 \
     --mpi 85 --bootstrap \
-    --noExternalPrograms \
+    --noExternalPrograms --gpu 0 1 \
     --numRecs 12 --maxSelections 14
 ```
 this will create a configuration file, and a script to run class reassignment:
@@ -192,7 +192,7 @@ janas_session_manager new_select_session \
     --mask ../../maskFull_dilatedClose.mrc \
     --sigma 1 \
     --mpi 85 --bootstrap \
-    --noExternalPrograms \
+    --noExternalPrograms --gpu 0 1 \
     --numRecs 12 --maxSelections 14
 ./class2_selection/class2_selection_run.sh
 ```

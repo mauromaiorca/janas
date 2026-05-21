@@ -92,7 +92,7 @@ janas_session_manager new_select_session \
     --bootstrap \
     --numRecs 12 \
     --maxSelections 14 \
-    --noExternalPrograms
+    --noExternalPrograms --gpu 0 1
 ```
 
 ### classification_session
@@ -104,10 +104,10 @@ janas_session_manager classification_session \
     --maps class1.mrc class2.mrc class3.mrc \
     --mask mask.mrc \
     --mpi 40 \
-    --noExternalPrograms
+    --noExternalPrograms --gpu 0 1
 ```
 
-> **About `--noExternalPrograms`:** runs 3D reconstruction and local resolution estimation using JANAS's internal code. Without this flag, JANAS will try to call RELION for these steps — RELION must be installed and accessible on your `PATH`.
+> **About `--noExternalPrograms` and `--gpu`:** `--noExternalPrograms` runs 3D reconstruction and local resolution estimation using JANAS's internal code. `--gpu 0 1` uses two GPUs (one per half-map, recommended); `--gpu 0` uses one; omit `--gpu` to run on CPU. Without `--noExternalPrograms`, RELION must be installed and accessible on your `PATH`.
 
 ### random_selection_session
 
