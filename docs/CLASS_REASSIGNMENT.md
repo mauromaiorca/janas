@@ -25,9 +25,22 @@ janas_session_manager classification_session \
     --particles particles.star \
     --maps class1.mrc class2.mrc class3.mrc \
     --mask mask.mrc \
-    --mpi 40
+    --mpi 40 \
+    --noExternalPrograms
 
 ./reclassify/reclassify_run.sh
 ```
 
 Output: `reclassify/final_classes/`
+
+> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
+
+## About `--mpi`
+
+`--mpi` sets the number of parallel worker processes used during particle scoring. The requested value is automatically capped to a safe one at runtime:
+
+1. If `--mpi` is greater than the number of available CPU cores, it is reduced to the CPU count (`multiprocessing.cpu_count()`). For example, requesting `--mpi 50` on a machine with 20 cores will use 20.
+2. If `--mpi` is less than 1, it is raised to 1.
+3. If `--mpi` is greater than the number of particles being processed, it is reduced to the particle count.
+
+This means you can safely set `--mpi` to a generous value and JANAS will pick the largest reasonable number of workers without over-subscribing the machine. For best performance, set `--mpi` to the number of physical cores you want to dedicate to the run.

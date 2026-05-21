@@ -27,10 +27,13 @@ janas_session_manager new_select_session \
     --map halfA.mrc \
     --map2 halfB.mrc \
     --mask mask.mrc \
-    --mpi 40
+    --mpi 40 \
+    --noExternalPrograms
 
 ./my_selection/my_selection_run.sh
 ```
+
+> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
 
 The session manager creates a working directory with a run script and configuration file. The script iterates through scoring, subsetting, reconstruction, and local resolution evaluation until convergence.
 
@@ -54,10 +57,13 @@ janas_session_manager classification_session \
     --particles particles.star \
     --maps class1.mrc class2.mrc class3.mrc \
     --mask mask.mrc \
-    --mpi 40
+    --mpi 40 \
+    --noExternalPrograms
 
 ./reclassify/reclassify_run.sh
 ```
+
+> Same note about `--noExternalPrograms` as above — without it, RELION must be installed and on your `PATH`.
 
 JANAS equalises the amplitudes across all reference maps, scores each particle against every map, assigns each particle to the class with the highest SCI, and reconstructs per-class volumes.
 

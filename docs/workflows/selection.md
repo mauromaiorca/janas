@@ -33,8 +33,11 @@ janas_session_manager new_select_session \
     --mpi 40 \
     --bootstrap \
     --numRecs 12 \
-    --maxSelections 14
+    --maxSelections 14 \
+    --noExternalPrograms
 ```
+
+> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
 
 This creates:
 

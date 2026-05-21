@@ -48,8 +48,11 @@ janas_session_manager classification_session \
     --particles reference_Refined_stack.star \
     --maps reference_Refined_rec.mrc J958_003_volume_mapAligned.mrc \
     --mask maskFull_dilatedClose.mrc \
-    --mpi 85
+    --mpi 85 \
+    --noExternalPrograms
 ```
+
+> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
 
 Run:
 
@@ -111,7 +114,8 @@ janas_session_manager new_select_session \
     --mask ../../maskFull_dilatedClose.mrc \
     --sigma 1 \
     --mpi 85 --bootstrap \
-    --numRecs 12 --maxSelections 14
+    --numRecs 12 --maxSelections 14 \
+    --noExternalPrograms
 ```
 
 Ensure the raw particle stack is accessible:
@@ -147,7 +151,8 @@ janas_session_manager new_select_session \
     --mask ../../maskFull_dilatedClose.mrc \
     --sigma 1 \
     --mpi 85 --bootstrap \
-    --numRecs 12 --maxSelections 14
+    --numRecs 12 --maxSelections 14 \
+    --noExternalPrograms
 
 ./class2_selection/class2_selection_run.sh
 ```

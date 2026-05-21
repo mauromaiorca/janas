@@ -23,8 +23,11 @@ janas_session_manager classification_session \
     --particles particles.star \
     --maps class1.mrc class2.mrc class3.mrc \
     --mask mask.mrc \
-    --mpi 40
+    --mpi 40 \
+    --noExternalPrograms
 ```
+
+> **Note on `--noExternalPrograms`:** with this flag, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies; a GPU is strongly recommended for medium-to-large datasets). Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
 
 This creates:
 
