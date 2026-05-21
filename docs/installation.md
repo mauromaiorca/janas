@@ -4,51 +4,91 @@
 
 # Installation
 
+JANAS can be installed in two ways:
+
+- **From source (recommended)** — clone the repository and install with `pip`. Gives you the latest version and full control over the source.
+- **From PyPI** — quick installation of the latest released version.
+
 ## Prerequisites
 
 - Python 3.8+
 - C++ compiler (GCC on Linux, Clang on macOS)
 - CMake 3.10+
+- git
 
 === "Ubuntu / WSL2"
 
     ```bash
     sudo apt update
-    sudo apt install -y python3 python3-pip python3-venv g++ cmake
+    sudo apt install -y python3 python3-pip python3-venv g++ cmake git
     ```
 
 === "macOS (Homebrew)"
 
     ```bash
-    brew install cmake
+    brew install cmake git
     xcode-select --install
     ```
 
-## Install from PyPI
+## Recommended: full installation from source
+
+This sequence creates a fresh virtual environment and installs JANAS in one go:
 
 ```bash
+# 1. Create a working directory
+mkdir -p ~/janas_install
+cd ~/janas_install
+
+# 2. Create and activate a new virtual environment
+python3 -m venv ~/.janas_env
+source ~/.janas_env/bin/activate
+
+# 3. Upgrade pip
+pip install --upgrade pip
+
+# 4. Clone the repository
+git clone https://github.com/mauromaiorca/janas.git
+cd janas
+
+# 5. Install JANAS (Python + C++ extension + C++ apps)
+pip install .
+
+# 6. Verify
+janas --version
+janas_utils --version
+janas_app_starProcess
+janas_app_meanMinMax
+```
+
+In future sessions, activate the environment with:
+
+```bash
+source ~/.janas_env/bin/activate
+```
+
+To update later:
+
+```bash
+source ~/.janas_env/bin/activate
+cd ~/janas_install/janas
+git pull origin main
+pip install --upgrade .
+```
+
+For editable (development) installs and the C++ apps reference, see [Install from source](https://github.com/mauromaiorca/janas/blob/main/tutorial/INSTALL_FROM_SOURCE.md).
+
+## Quick install from PyPI
+
+```bash
+python3 -m venv ~/.janas_env
+source ~/.janas_env/bin/activate
+pip install --upgrade pip
 pip install janas
 ```
 
 This compiles and installs the Python package, the C++ extension, and the standalone C++ apps.
 
-## Environment setup
-
-We recommend installing JANAS in an isolated environment.
-
-=== "venv"
-
-    ```bash
-    python3 -m venv ~/.janas_env
-    source ~/.janas_env/bin/activate
-    pip install janas
-    ```
-
-    Activate in future sessions:
-
-    ```bash
-    source ~/.janas_env/bin/activate
-    ```
+### Alternative environment managers
 
 === "pipx"
 
@@ -84,25 +124,12 @@ pip uninstall janas        # if installed with pip
 pipx uninstall janas       # if installed with pipx
 ```
 
-## Install from source
-
-If you need the latest development version or plan to modify the code:
+To also remove the virtual environment:
 
 ```bash
-git clone https://github.com/mauromaiorca/janas.git
-cd janas
-python3 -m venv .janas_env
-source .janas_env/bin/activate
-pip install .
+deactivate
+rm -rf ~/.janas_env
 ```
-
-For development (editable mode):
-
-```bash
-pip install -e .
-```
-
-See [Install from source](https://github.com/mauromaiorca/janas/blob/main/tutorial/INSTALL_FROM_SOURCE.md) for the full reference, including manual C++ compilation and shell shortcuts.
 
 ## External dependencies
 
