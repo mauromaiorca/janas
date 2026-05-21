@@ -7,10 +7,8 @@
 <p align="center">
   <img src="images/fig1A.png" alt="fig1A.png" width="600">
 </p>
-## Introduction
 
-
-Iterative selection identifies a particle subset that aims to support a more interpretable reconstruction. Starting from an input particle stack, reference map, and mask, JANAS scores particles using the Structural Cross-correlation Index (SCI), ranks them while accounting for angular distribution, and evaluates candidate particle subsets through repeated reconstruction.
+Iterative selection identifies a particle subset that aims to support a more interpretable reconstruction. Starting from an input particle stack (and ideally reference half maps, and mask), JANAS scores particles using the Structural Cross-correlation Index (SCI), ranks them while accounting for angular distribution, and evaluates candidate particle subsets through repeated reconstruction.
 
 Rather than selecting a fixed percentage of particles, JANAS searches for the particle count that gives the most favourable local-resolution behaviour within the masked region. This allows the workflow to retain particles that contribute consistently to the reconstruction while excluding particles that reduce map quality or introduce artefacts.
 
