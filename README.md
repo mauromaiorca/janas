@@ -12,7 +12,6 @@
 
 <p align="center">
   <a href="#installation">Installation</a> &bull;
-  <a href="#quick-start">Quick start</a> &bull;
   <a href="docs/index.md">Documentation</a> &bull;
   <a href="https://github.com/mauromaiorca/janas/issues">Issues</a>
 </p>
@@ -54,39 +53,6 @@ janas --version
 
 See the [Installation Guide](docs/installation.md) for conda, pipx, troubleshooting, and building from source.
 
-## Quick start
-
-### Iterative particle selection
-
-```bash
-janas_session_manager new_select_session \
-    --name my_selection \
-    --particles particles.star \
-    --map halfA.mrc \
-    --map2 halfB.mrc \
-    --mask mask.mrc \
-    --mpi 40
-
-./my_selection/my_selection_run.sh
-```
-
-Output: `my_selection/reference_subset.star`
-
-### 3D class reassignment
-
-
-```bash
-janas_session_manager classification_session \
-    --name reclassify \
-    --particles particles.star \
-    --maps class1.mrc class2.mrc class3.mrc \
-    --mask mask.mrc \
-    --mpi 40
-
-./reclassify/reclassify_run.sh
-```
-
-Output: `reclassify/final_classes/`
 
 ## Documentation
 
