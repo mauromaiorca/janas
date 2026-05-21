@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+- Change the default CTF application mode for particle scoring from `phaseflip` to `modulate` (multiply by the full CTF). This applies to `janas scoreParticles`, `janas_session_manager classification_session`, and `janas_session_manager new_select_session`.
+- Fix `new_select_session --ctf-mode`: align choices with `janas scoreParticles` (`modulate`, `phaseflip`, `wiener`) — previous choices (`none`, `image`, `phaseflip`, `ref`) did not match the scoring backend.
+- The selected CTF mode is now actually propagated to all `janas scoreParticles` invocations in the generated selection run script.
+
 ## 1.0.2
 
 - Add `--ctf-mode` option to `janas_session_manager classification_session`. Choices: `modulate`, `phaseflip` (default), `wiener`. The flag is propagated to the `janas scoreParticles` calls in the generated run script, so the chosen CTF handling is applied during class scoring.

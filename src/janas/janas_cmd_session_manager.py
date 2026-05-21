@@ -844,6 +844,7 @@ process_iteration() {
             + numMpi
             + " --rank "
             + numViews
+            + " --ctf-mode ${CTF_MODE}"
             + "\n"
         )
     else:
@@ -887,6 +888,7 @@ process_iteration() {
                 + numMpi
                 + " --rank "
                 + numViews
+                + " --ctf-mode ${CTF_MODE}"
                 + "\n"
             )
 
@@ -911,6 +913,7 @@ process_iteration() {
                 + numMpi
                 + " --rank "
                 + numViews
+                + " --ctf-mode ${CTF_MODE}"
                 + "\n"
             )
 
@@ -1083,7 +1086,7 @@ process_iteration() {
     run_script_cmd += 'if [ "${assessmentMethod}" = "median" ]; then\n'
     run_script_cmd += '    NUMPART_METHOD_FLAG="--median_res"\n'
     run_script_cmd += 'fi\n'
-    run_script_cmd += f'AssessCtfMode="{as_str(data.get("ctf_mode", "image"))}"\n'
+    run_script_cmd += f'CTF_MODE="{as_str(data.get("ctf_mode", "modulate"))}"\n'
     run_script_cmd += f'do_subtraction="{as_str(data.get("do_subtraction", "False"))}"\n'
     run_script_cmd += f'subtraction_mask="{as_str(data.get("subtraction_mask", ""))}"\n'
     run_script_cmd += f'workingDir="{as_str(data.get("session_name"))}"\n'
@@ -1753,10 +1756,13 @@ scoring.add_argument(
 scoring.add_argument(
     "--ctf-mode",
     required=False,
-    default="phaseflip",
-    choices=["none", "image", "phaseflip", "ref"],
+    default="modulate",
+    choices=["modulate", "phaseflip", "wiener"],
     help=(
-        "CTF handling for scoring: image, ref, phaseflip, or none."
+        "CTF application mode for particle scoring: "
+        "'modulate' (multiply by full CTF, default), "
+        "'phaseflip' (sign of CTF), or "
+        "'wiener' (CTF / (CTF^2 + 0.1))."
     ),
 )
 scoring.add_argument(
@@ -2543,12 +2549,12 @@ janas_classification_session.add_argument(
     "--ctf-mode",
     required=False,
     type=str,
-    default="phaseflip",
+    default="modulate",
     choices=["modulate", "phaseflip", "wiener"],
     help=(
         "CTF application mode for particle scoring: "
-        "'modulate' (multiply by full CTF), "
-        "'phaseflip' (sign of CTF, default), or "
+        "'modulate' (multiply by full CTF, default), "
+        "'phaseflip' (sign of CTF), or "
         "'wiener' (CTF / (CTF^2 + 0.1))."
     ),
 )
