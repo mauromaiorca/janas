@@ -27,8 +27,8 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 
 | Workflow | Purpose |
 |----------|---------|
-| Iterative particle selection | Score, rank and select particle subsets that maximise local resolution. |
-| 3D class reassignment | Assign particles to pre-computed classes using per-map SCI scores. |
+| [Iterative particle selection](docs/ITERATIVE_SELECTION.md)  | Score, rank and select particle subsets that maximise local resolution. |
+|  [3D class reassignment](docs/CLASS_REASSIGNMENT.md)  | Assign particles to pre-computed classes using per-map SCI scores. |
 
 ## Installation
 
