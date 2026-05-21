@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="tutorial/general_images/janasLogo.png" alt="JANAS logo" width="400">
+  <img src="tutorial/general_images/janasLogo.png" alt="JANAS logo" width="200">
 </p>
 
 <h1 align="center">JANAS</h1>
@@ -101,13 +101,6 @@ Output: `reclassify/final_classes/`
 - [Tutorial: EMPIAR-10308](docs/examples/empiar-10308.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
-## Citation
-
-If you use JANAS in published work, please cite:
-
-> Maiorca, M. *et al.* (2025). JANAS: Joint Analysis of Stacks for CryoEM. *In preparation.*
-
-See [citation details](docs/citation.md).
 
 ## Contact
 
