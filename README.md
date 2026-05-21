@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="tutorial/general_images/janasLogo.png" alt="JANAS logo" width="150">
+  <img src="tutorial/general_images/janasLogo.png" alt="JANAS logo" width="200">
 </p>
 
 <h1 align="center">JANAS</h1>
