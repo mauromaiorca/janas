@@ -33,7 +33,7 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 
 | Utility | Purpose |
 |---------|---------|
-| [sigma_estimate](docs/sigma_estimate.md) | Estimate a Gaussian sigma for SCI scoring from a pair of half-maps (full theory and derivation). |
+| [sigma_estimate](docs/sigma_estimate.md) | Estimate a Gaussian sigma for SCI scoring from a pair of half-maps. |
 | [compare_maps](docs/accessory_utils.md#compare_maps) | Compare two 3D maps using cross-correlation and related similarity measures. |
 | [csparc2star-stack](docs/accessory_utils.md#csparc2star-stack) | Convert a CryoSPARC `.cs` file to a RELION STAR and assemble a consolidated `.mrcs` stack. |
 | [clip blur](docs/accessory_utils.md#clip-blur) | Gaussian-blur a 3D volume (sigma in Ångström). |
@@ -78,7 +78,7 @@ See the [Installation Guide](docs/installation.md) for conda, pipx, troubleshoot
 - [CryoSPARC integration](docs/workflows/cryosparc.md)
 - [CLI command reference](docs/reference/cli.md)
 - [Accessory utilities](docs/accessory_utils.md)
-  - [sigma_estimate (theory and derivation)](docs/sigma_estimate.md)
+  - [sigma_estimate](docs/sigma_estimate.md)
 - [STAR file operations](docs/reference/star-operations.md)
 - [Computational requirements](docs/reference/computational-requirements.md)
 - [Tutorial: EMPIAR-10308](docs/examples/empiar-10308.md)
