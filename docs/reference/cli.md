@@ -107,7 +107,7 @@ janas_session_manager classification_session \
     --noExternalPrograms --gpu 0 1
 ```
 
-> **About `--noExternalPrograms` and `--gpu`:** `--noExternalPrograms` runs 3D reconstruction and local resolution estimation using JANAS's internal code. `--gpu 0 1` uses two GPUs (one per half-map, recommended); `--gpu 0` uses one; omit `--gpu` to run on CPU. Without `--noExternalPrograms`, RELION must be installed and accessible on your `PATH`.
+> **About `--noExternalPrograms` and `--gpu`:** these flags affect **only the reconstruction and local resolution steps** — particle scoring always runs on CPU (controlled by `--mpi`). With GPU(s), `--noExternalPrograms --gpu 0 1` (recommended) uses two GPUs, one per half-map; `--gpu 0` uses one. On CPU-only machines, omitting `--noExternalPrograms` lets JANAS call RELION's MPI-based reconstruction and `relion_postprocess`, which is typically faster than JANAS's internal CPU reconstruction — make sure RELION is installed and accessible on your `PATH`.
 
 ### random_selection_session
 

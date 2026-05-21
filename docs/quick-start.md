@@ -33,7 +33,13 @@ janas_session_manager new_select_session \
 ./my_selection/my_selection_run.sh
 ```
 
-> **Note on `--noExternalPrograms` and `--gpu`:** with `--noExternalPrograms`, JANAS performs 3D reconstruction and local resolution estimation using its own internal code (no external dependencies). `--gpu 0 1` distributes reconstruction across two GPUs (one per half-map) and gives the best throughput; use `--gpu 0` for a single GPU, or omit `--gpu` entirely to run on CPU only — JANAS still works without a GPU. Without `--noExternalPrograms`, JANAS will try to call RELION for these steps — make sure RELION is installed and accessible on your `PATH` before running.
+> **Note on `--noExternalPrograms` and `--gpu`:** these flags affect **only the reconstruction and local resolution steps**; particle scoring always runs on CPU (controlled by `--mpi`). GPU acceleration applies only to reconstruction. Choose based on your hardware:
+>
+> - **With GPU(s) (recommended):** `--noExternalPrograms --gpu 0 1` uses two GPUs, one per half-map, for the best throughput. `--gpu 0` uses a single GPU.
+> - **No GPU but RELION available:** omit `--noExternalPrograms` — JANAS will call RELION's MPI-based reconstruction and `relion_postprocess`, which on a CPU-only machine is typically faster than JANAS's internal CPU reconstruction. Make sure RELION is installed and accessible on your `PATH`.
+> - **No GPU, no RELION:** `--noExternalPrograms` without `--gpu` runs JANAS's internal CPU reconstruction; it works but is slower on large datasets.
+>
+> You can also choose to use RELION for reconstruction even when a GPU is available — simply omit `--noExternalPrograms`.
 
 The session manager creates a working directory with a run script and configuration file. The script iterates through scoring, subsetting, reconstruction, and local resolution evaluation until convergence.
 
@@ -63,7 +69,7 @@ janas_session_manager classification_session \
 ./reclassify/reclassify_run.sh
 ```
 
-> Same note about `--noExternalPrograms` and `--gpu` as above — use `--gpu 0 1` for two GPUs (recommended), `--gpu 0` for one, or omit `--gpu` for CPU-only. Without `--noExternalPrograms`, RELION must be installed and on your `PATH`.
+> Same note about `--noExternalPrograms` and `--gpu` as above — GPU is used only for reconstruction. Use `--gpu 0 1` for two GPUs (recommended), `--gpu 0` for one, omit `--gpu` for JANAS's CPU reconstruction, or drop `--noExternalPrograms` to use RELION (often faster on CPU-only machines; RELION must be installed and on your `PATH`).
 
 JANAS equalises the amplitudes across all reference maps, scores each particle against every map, assigns each particle to the class with the highest SCI, and reconstructs per-class volumes.
 
