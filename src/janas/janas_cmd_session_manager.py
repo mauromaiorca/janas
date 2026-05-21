@@ -2345,10 +2345,16 @@ def generate_classification_run_script(fileSettings):
         "1",
         "yes",
     )
+    no_recs_flag = str(data.get("no_recs", "false")).strip().lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     run_script_cmd = "#!/bin/bash\n\n"
     run_script_cmd += f'GPU_ARG_OPT="{gpu_opt}"\n'
     run_script_cmd += f'NO_EXTERNAL={"1" if no_external_flag else "0"}\n'
+    run_script_cmd += f'NO_RECS={"1" if no_recs_flag else "0"}\n'
     run_script_cmd += """
 ensure_directory() {
     local dir="$1"
@@ -2415,6 +2421,11 @@ process_classification() {
     for i in "${!mapsArray[@]}"; do
         class_number=$((i + 1))
         janas_utils extract_particles_from_label_value --i  ${classesDir}/${name}_classified.star --o ${classesDir}/class_${class_number}.star --label _rlnClassNumber --value ${class_number}
+
+        if [ "$NO_RECS" -eq 1 ]; then
+            echo "SKIPPING reconstruction for class ${class_number} (--noRecs); STAR file written to ${classesDir}/class_${class_number}.star"
+            continue
+        fi
 
         if [ "$NO_EXTERNAL" -eq 1 ]; then
             # Internal reconstructor builds both half-maps in one call
@@ -2558,6 +2569,16 @@ janas_classification_session.add_argument(
         "'wiener' (CTF / (CTF^2 + 0.1))."
     ),
 )
+janas_classification_session.add_argument(
+    "--noRecs",
+    action="store_true",
+    help=(
+        "If set, skip all per-class reconstructions. Only particle scoring "
+        "and class assignment are performed. Per-class STAR files are still "
+        "written so the user can reconstruct each class with their preferred "
+        "software (e.g. RELION, cryoSPARC, janas_reconstructor)."
+    ),
+)
 
 # NEW: mirror new_select_session flags
 janas_classification_session.add_argument(
@@ -2669,6 +2690,8 @@ def classification_session(args):
         file.write(f'numMPI= "{args.mpi}"\n')
         file.write("\n# CTF application mode for particle scoring (modulate|phaseflip|wiener):\n")
         file.write(f'ctf_mode= "{str(args.ctf_mode).lower()}"\n')
+        file.write("\n# If true, skip per-class reconstructions (scoring + assignment only):\n")
+        file.write(f'no_recs= "{str(bool(args.noRecs)).lower()}"\n')
         gpu_str = " ".join(map(str, args.gpu)) if args.gpu else ""
         file.write("\n# GPU list for internal reconstructor:\n")
         file.write(f'gpu= "{gpu_str}"\n')

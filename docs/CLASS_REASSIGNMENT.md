@@ -41,6 +41,26 @@ janas_session_manager classification_session \
 
 Choices: `modulate` (default — multiplies by the full CTF), `phaseflip` (applies `sign(CTF)`), `wiener` (`CTF / (CTF² + 0.1)`).
 
+## Skipping reconstruction with `--noRecs`
+
+If you want to score and assign particles but reconstruct each class yourself with an external tool (RELION, cryoSPARC, etc.), add `--noRecs`:
+
+```bash
+janas_session_manager classification_session \
+    --name reclassify \
+    --particles particles.star \
+    --maps class1.mrc class2.mrc class3.mrc \
+    --mask mask.mrc \
+    --mpi 40 \
+    --noRecs
+```
+
+The run script will produce the per-class STAR files in `reclassify/final_classes/` (`class_1.star`, `class_2.star`, ...) but skip reconstruction. You can then reconstruct each class with the software of your choice, for example:
+
+```bash
+relion_reconstruct --i class_1.star --o class_1.mrc --ctf
+```
+
 Output: `reclassify/final_classes/`
 
 > **Note on `--noExternalPrograms` and `--gpu`:** these flags affect **only the reconstruction and local resolution steps**; particle scoring always runs on CPU (controlled by `--mpi`). GPU acceleration applies only to reconstruction. Choose based on your hardware:

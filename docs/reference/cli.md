@@ -110,6 +110,8 @@ janas_session_manager classification_session \
 
 `--ctf-mode` chooses how the CTF is applied during particle scoring. Choices: `modulate` (default — multiplies by the full CTF), `phaseflip` (sign of CTF), `wiener` (`CTF / (CTF² + 0.1)`). The same option is available on `new_select_session`. The selected mode is forwarded to the `janas scoreParticles` calls in the generated run script.
 
+`--noRecs` (classification_session only): skip per-class reconstruction. The run script performs scoring and assignment, and writes per-class STAR files, but does not call any reconstruction backend. Use this when you prefer to reconstruct each class yourself (RELION, cryoSPARC, `janas_reconstructor`, etc.).
+
 > **About `--noExternalPrograms` and `--gpu`:** these flags affect **only the reconstruction and local resolution steps** — particle scoring always runs on CPU (controlled by `--mpi`). With GPU(s), `--noExternalPrograms --gpu 0 1` (recommended) uses two GPUs, one per half-map; `--gpu 0` uses one. On CPU-only machines, omitting `--noExternalPrograms` lets JANAS call RELION's MPI-based reconstruction and `relion_postprocess`, which is typically faster than JANAS's internal CPU reconstruction — make sure RELION is installed and accessible on your `PATH`.
 
 ### random_selection_session
