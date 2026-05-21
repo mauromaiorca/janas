@@ -518,10 +518,13 @@ done
     reconstruction_file_path = os.path.join(args.outDir, args.scriptName)
     with open(reconstruction_file_path, "w") as f:
         f.write(reconstruction_command)
-    os.chmod(
-        reconstruction_file_path,
-        os.stat(reconstruction_file_path).st_mode | stat.S_IXUSR,
-    )
+    try:
+        os.chmod(
+            reconstruction_file_path,
+            os.stat(reconstruction_file_path).st_mode | stat.S_IXUSR,
+        )
+    except PermissionError:
+        pass
 
     #######################
     #####LOCRES COMMAND
@@ -1228,7 +1231,10 @@ def csparc_setup(args):
         f.write(f'export CRYOSPARC_PASSWORD="{password}"\n')
 
     # Rende lo script eseguibile per l'utente
-    os.chmod(env_path, os.stat(env_path).st_mode | stat.S_IXUSR)
+    try:
+        os.chmod(env_path, os.stat(env_path).st_mode | stat.S_IXUSR)
+    except PermissionError:
+        pass
 
     # 7. Scrive anche un JSON di configurazione (opzionale, utile in futuro)
     cfg_path = os.path.join(config_dir, "cryosparc_config.json")

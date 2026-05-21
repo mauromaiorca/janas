@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Wrap `os.chmod` calls in `try / except PermissionError` for Windows compatibility (some filesystems do not permit `chmod`).
+
 ## 1.0.0
 
 - First public release on PyPI.

@@ -223,10 +223,13 @@ done
     reconstruction_file_path = os.path.join(args.outDir, args.scriptName)
     with open(reconstruction_file_path, "w") as f:
         f.write(reconstruction_command)
-    os.chmod(
-        reconstruction_file_path,
-        os.stat(reconstruction_file_path).st_mode | stat.S_IXUSR,
-    )
+    try:
+        os.chmod(
+            reconstruction_file_path,
+            os.stat(reconstruction_file_path).st_mode | stat.S_IXUSR,
+        )
+    except PermissionError:
+        pass
 
     ########################
     #####LOCRES COMMAND
@@ -1559,7 +1562,10 @@ run_csparc_localnu_if_enabled() {
     os.makedirs(os.path.dirname(runScriptName), exist_ok=True)
     with open(runScriptName, "w") as f:
         f.write(run_script_cmd)
-    os.chmod(runScriptName, 0o755)
+    try:
+        os.chmod(runScriptName, 0o755)
+    except PermissionError:
+        pass
 
 
 
@@ -2229,7 +2235,10 @@ process_random() {
     )
     with open(runScriptName, "w") as f:
         f.write(run_script_cmd)
-    os.chmod(runScriptName, 0o755)
+    try:
+        os.chmod(runScriptName, 0o755)
+    except PermissionError:
+        pass
 
 
 #######################################################
@@ -2458,7 +2467,10 @@ process_classification() {
     )
     with open(runScriptName, "w") as f:
         f.write(run_script_cmd)
-    os.chmod(runScriptName, 0o755)
+    try:
+        os.chmod(runScriptName, 0o755)
+    except PermissionError:
+        pass
 
 
 #######################################################
