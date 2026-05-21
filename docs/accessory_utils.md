@@ -11,8 +11,10 @@ JANAS bundles a number of stand-alone utilities for common cryo-EM map and stack
 Estimate a suitable Gaussian sigma for SCI scoring from a pair of half-maps. The value can then be passed to `--sigma` in session-manager and scoring commands.
 
 ```bash
-janas_utils sigma_estimate halfmap1.mrc halfmap2.mrc
+janas_utils sigma_estimate halfmap1.mrc halfmap2.mrc [--mask mask.mrc]
 ```
+
+For the full derivation and the rationale behind the automated estimator, see the dedicated [sigma_estimate page](sigma_estimate.md).
 
 ## compare_maps
 
@@ -82,13 +84,28 @@ janas_utils project_map --i particles.star --map reference.mrc --o reprojections
 
 Internal 3D reconstruction from scored particles. Supports GPU acceleration (PyTorch CUDA, mini-batched) or CPU multiprocessing. Used automatically by the session-manager workflows when `--noExternalPrograms` is set.
 
+Single-volume reconstruction:
+
 ```bash
 janas_reconstructor \
     --i particles.star \
     --o output.mrc \
-    --gpu 0 1 \
-    --gpu-batch 20
+    --gpu 0
 ```
+
+Independent half-map reconstruction (for FSC and local-resolution evaluation):
+
+```bash
+janas_reconstructor \
+    --i particles.star \
+    --o output \
+    --gpu 0 \
+    --subset 1 2
+```
+
+This produces `output_recH1.mrc` and `output_recH2.mrc` from the two particle subsets defined by `_rlnRandomSubset`.
+
+> **GPU vs CPU:** GPU is strongly recommended. Without a GPU (omit `--gpu`), reconstruction falls back to CPU multiprocessing, which is **very slow** on medium-to-large datasets. On CPU-only machines, calling RELION (omit `--noExternalPrograms` in the session-manager workflows) is typically faster than the internal CPU reconstructor.
 
 See the [CLI reference](reference/cli.md#janas_reconstructor) for the full option list.
 

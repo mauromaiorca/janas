@@ -123,22 +123,33 @@ janas_session_manager random_selection_session \
 
 ## janas_reconstructor
 
-3D reconstruction from scored particles.
+3D reconstruction from scored particles. GPU is strongly recommended; CPU-only operation is supported but **very slow** on medium-to-large datasets. On CPU-only machines, prefer RELION (omit `--noExternalPrograms` in session-manager workflows).
+
+Single-volume reconstruction:
 
 ```bash
 janas_reconstructor \
     --i particles.star \
     --o output.mrc \
+    --gpu 0
+```
+
+Independent half-map reconstruction (`output_recH1.mrc`, `output_recH2.mrc`):
+
+```bash
+janas_reconstructor \
+    --i particles.star \
+    --o output \
     --gpu 0 \
-    --gpu-batch 20
+    --subset 1 2
 ```
 
 | Option | Description |
 |--------|-------------|
-| `--gpu` | GPU device indices (e.g., `0` or `0 1`) |
+| `--gpu` | GPU device indices (e.g., `0` or `0 1`); omit for CPU-only |
 | `--gpu-batch` | Batch size for GPU processing (default 20) |
 | `--cpu` | Number of CPU workers (for CPU-only mode) |
-| `--subset` | Half-map indices to reconstruct |
+| `--subset` | Half-map indices to reconstruct (e.g., `1 2` for both half-maps) |
 | `--subrec-only` | Particle counts for subset reconstructions |
 
 ## janas_optimizer
