@@ -31,6 +31,16 @@ janas_session_manager classification_session \
 ./reclassify/reclassify_run.sh
 ```
 
+To force a specific CTF handling during scoring, add `--ctf-mode`:
+
+```bash
+janas_session_manager classification_session \
+    ... \
+    --ctf-mode modulate
+```
+
+Choices: `phaseflip` (default — applies `sign(CTF)`), `modulate` (multiplies by the full CTF), `wiener` (`CTF / (CTF² + 0.1)`).
+
 Output: `reclassify/final_classes/`
 
 > **Note on `--noExternalPrograms` and `--gpu`:** these flags affect **only the reconstruction and local resolution steps**; particle scoring always runs on CPU (controlled by `--mpi`). GPU acceleration applies only to reconstruction. Choose based on your hardware:

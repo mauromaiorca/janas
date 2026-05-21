@@ -2386,10 +2386,11 @@ process_classification() {
     local listEqualizedMaps=$9
     local listClassNames=${10}
     local numMPI=${11}
+    local ctfMode=${12:-phaseflip}
 
     ensure_directory ${workingDir}
 
-    
+
     # Convert space-separated strings to arrays
     IFS=' ' read -r -a mapsArray <<< "$listEqualizedMaps"
     IFS=' ' read -r -a classNamesArray <<< "$listClassNames"
@@ -2398,8 +2399,8 @@ process_classification() {
     for i in "${!mapsArray[@]}"; do
         local map=${mapsArray[$i]}
         local className=${classNamesArray[$i]}
-        echo "Processing map: $map with class name: $className"
-        janas scoreParticles --i ${particles} --mask ${mask} --map ${map} --apix ${angpix} --sigma  ${sigma} --o "${scoringDir}/${className}".star --mpi "$numMPI"
+        echo "Processing map: $map with class name: $className (CTF mode: ${ctfMode})"
+        janas scoreParticles --i ${particles} --mask ${mask} --map ${map} --apix ${angpix} --sigma  ${sigma} --o "${scoringDir}/${className}".star --mpi "$numMPI" --ctf-mode "${ctfMode}"
         results_classification_array="${results_classification_array} ${scoringDir}/${className}.star"
     done
 
@@ -2449,6 +2450,7 @@ process_classification() {
     run_script_cmd += 'angpix="' + data.get("angpix", "1.0") + '"\n'
     run_script_cmd += 'sigma="' + data.get("sigma", "1.0") + '"\n'
     run_script_cmd += 'numMPI="' + data.get("numMPI", "8") + '"\n'
+    run_script_cmd += 'ctfMode="' + str(data.get("ctf_mode", "phaseflip")) + '"\n'
     run_script_cmd += (
         "janas_utils equalize_images  --i "
         + data.get("input_maps", "None")
@@ -2458,7 +2460,7 @@ process_classification() {
         + os.path.join(data.get("dir", "./"), data.get("equalized_suffix", "equalized"))
         + "\n"
     )
-    run_script_cmd += 'process_classification "$name" "$workingDir" "$scoring_dir" "$classes_dir" "$particles" "$angpix" "$sigma" "$targetMask" "$listEqualizedMaps" "$listClassNames" "$numMPI"\n'
+    run_script_cmd += 'process_classification "$name" "$workingDir" "$scoring_dir" "$classes_dir" "$particles" "$angpix" "$sigma" "$targetMask" "$listEqualizedMaps" "$listClassNames" "$numMPI" "$ctfMode"\n'
     # run_script_cmd += './${workingDir}/script_reconstructions.sh'
     run_script_cmd += "\n\n\n"
 
@@ -2536,6 +2538,19 @@ janas_classification_session.add_argument(
 )
 janas_classification_session.add_argument(
     "--mpi", required=False, type=int, default="8", help="number of MPI values"
+)
+janas_classification_session.add_argument(
+    "--ctf-mode",
+    required=False,
+    type=str,
+    default="phaseflip",
+    choices=["modulate", "phaseflip", "wiener"],
+    help=(
+        "CTF application mode for particle scoring: "
+        "'modulate' (multiply by full CTF), "
+        "'phaseflip' (sign of CTF, default), or "
+        "'wiener' (CTF / (CTF^2 + 0.1))."
+    ),
 )
 
 # NEW: mirror new_select_session flags
@@ -2646,6 +2661,8 @@ def classification_session(args):
         file.write(f'sigma= "{args.sigma}"\n')
         file.write("\n# number of MPI processing:\n")
         file.write(f'numMPI= "{args.mpi}"\n')
+        file.write("\n# CTF application mode for particle scoring (modulate|phaseflip|wiener):\n")
+        file.write(f'ctf_mode= "{str(args.ctf_mode).lower()}"\n')
         gpu_str = " ".join(map(str, args.gpu)) if args.gpu else ""
         file.write("\n# GPU list for internal reconstructor:\n")
         file.write(f'gpu= "{gpu_str}"\n')

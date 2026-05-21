@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- Add `--ctf-mode` option to `janas_session_manager classification_session`. Choices: `modulate`, `phaseflip` (default), `wiener`. The flag is propagated to the `janas scoreParticles` calls in the generated run script, so the chosen CTF handling is applied during class scoring.
+
 ## 1.0.1
 
 - Wrap `os.chmod` calls in `try / except PermissionError` for Windows compatibility (some filesystems do not permit `chmod`).

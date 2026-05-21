@@ -104,8 +104,11 @@ janas_session_manager classification_session \
     --maps class1.mrc class2.mrc class3.mrc \
     --mask mask.mrc \
     --mpi 40 \
+    --ctf-mode phaseflip \
     --noExternalPrograms --gpu 0 1
 ```
+
+`--ctf-mode` chooses how the CTF is applied during particle scoring. Choices: `phaseflip` (default), `modulate`, `wiener`. The selected mode is forwarded to the `janas scoreParticles` calls in the generated run script.
 
 > **About `--noExternalPrograms` and `--gpu`:** these flags affect **only the reconstruction and local resolution steps** — particle scoring always runs on CPU (controlled by `--mpi`). With GPU(s), `--noExternalPrograms --gpu 0 1` (recommended) uses two GPUs, one per half-map; `--gpu 0` uses one. On CPU-only machines, omitting `--noExternalPrograms` lets JANAS call RELION's MPI-based reconstruction and `relion_postprocess`, which is typically faster than JANAS's internal CPU reconstruction — make sure RELION is installed and accessible on your `PATH`.
 
