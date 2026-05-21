@@ -50,10 +50,17 @@ pip install --upgrade pip
 git clone https://github.com/mauromaiorca/janas.git
 cd janas
 
-# 5. Install JANAS (Python + C++ extension + C++ apps)
+# 5. (Optional, GPU only) Install PyTorch with the right CUDA wheel.
+#    Pick the line that matches your CUDA driver (see `nvidia-smi`):
+# python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+# python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
+# python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+# See the "GPU support (PyTorch)" section below for details.
+
+# 6. Install JANAS (Python + C++ extension + C++ apps)
 pip install .
 
-# 6. Verify
+# 7. Verify
 janas --version
 janas_utils --version
 janas_app_starProcess
@@ -130,6 +137,28 @@ To also remove the virtual environment:
 deactivate
 rm -rf ~/.janas_env
 ```
+
+## GPU support (PyTorch)
+
+GPU-accelerated 3D reconstruction (used when `--noExternalPrograms --gpu N` is set) requires **PyTorch**. PyTorch is intentionally **not** declared in JANAS's `requirements.txt`, because the right wheel depends on your CUDA driver. Install it manually before or after JANAS, choosing the wheel that matches your CUDA version.
+
+Check your CUDA driver version with `nvidia-smi`, then pick the matching command from the [official PyTorch selector](https://pytorch.org/get-started/locally/). Examples:
+
+```bash
+# CUDA 12.8
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+
+# CUDA 12.1
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# CUDA 11.8
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu118
+
+# CPU-only (no GPU; reconstruction will work but be very slow)
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+If you only use RELION for reconstruction (omit `--noExternalPrograms` in the session-manager workflows), PyTorch is **not** needed at all.
 
 ## External dependencies
 
