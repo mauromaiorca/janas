@@ -29,6 +29,20 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 | [Iterative particle selection](docs/ITERATIVE_SELECTION.md)  | Score, rank and select particle subsets that maximise local resolution. |
 |  [3D class reassignment](docs/CLASS_REASSIGNMENT.md)  | Assign particles to pre-computed classes using per-map SCI scores. |
 
+## Accessory utils
+
+| Utility | Purpose |
+|---------|---------|
+| [sigma_estimate](docs/accessory_utils.md#sigma_estimate) | Estimate a Gaussian sigma for SCI scoring from a pair of half-maps. |
+| [compare_maps](docs/accessory_utils.md#compare_maps) | Compare two 3D maps using cross-correlation and related similarity measures. |
+| [csparc2star-stack](docs/accessory_utils.md#csparc2star-stack) | Convert a CryoSPARC `.cs` file to a RELION STAR and assemble a consolidated `.mrcs` stack. |
+| [clip blur](docs/accessory_utils.md#clip-blur) | Gaussian-blur a 3D volume (sigma in Ångström). |
+| [clip bfac](docs/accessory_utils.md#clip-bfac) | B-factor weighting (sharpening) of a 3D volume, automatic or user-driven. |
+| [fsc](docs/accessory_utils.md#fsc) | Compute Fourier Shell Correlation (FSC) between half-map pairs. |
+| [locres](docs/accessory_utils.md#locres) | Compute a local-resolution map from a pair of half-maps. |
+| [project_map](docs/accessory_utils.md#project_map) | Project a 3D reference map at each particle pose, writing 2D reprojections. |
+| [janas_reconstructor](docs/accessory_utils.md#janas_reconstructor) | Internal 3D reconstruction from scored particles (GPU or CPU). |
+
 ## Installation
 
 Requires Python 3.8+, a C++ compiler, and CMake 3.10+.
@@ -63,6 +77,7 @@ See the [Installation Guide](docs/installation.md) for conda, pipx, troubleshoot
 - [3D class reassignment](docs/workflows/classification.md)
 - [CryoSPARC integration](docs/workflows/cryosparc.md)
 - [CLI command reference](docs/reference/cli.md)
+- [Accessory utilities](docs/accessory_utils.md)
 - [STAR file operations](docs/reference/star-operations.md)
 - [Computational requirements](docs/reference/computational-requirements.md)
 - [Tutorial: EMPIAR-10308](docs/examples/empiar-10308.md)
