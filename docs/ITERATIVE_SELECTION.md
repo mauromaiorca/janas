@@ -5,6 +5,6 @@
 # ITERATIVE SELECTION
 
 <p align="center">
-  <img src="docs/images/fig1A.png" alt="fig1A.png" width="300">
+  <img src="images/fig1A.png" alt="fig1A.png" width="300">
 </p>
 
