@@ -1029,6 +1029,20 @@ def main():
 
     # -------- GPU orchestration --------
     if args.gpu is not None:
+        if not TORCH_AVAILABLE:
+            print(
+                "\nERROR: PyTorch is required for GPU reconstruction but is not installed.\n"
+                "Install it before running with --gpu. Pick the wheel matching your CUDA\n"
+                "driver (check with `nvidia-smi`), for example:\n\n"
+                "    python -m pip install torch --index-url https://download.pytorch.org/whl/cu128\n"
+                "    python -m pip install torch --index-url https://download.pytorch.org/whl/cu121\n"
+                "    python -m pip install torch --index-url https://download.pytorch.org/whl/cu118\n\n"
+                "Or, for a generic install from the default PyPI index:\n\n"
+                "    pip install 'janas[gpu]'   # or:   pip install torch\n\n"
+                "See docs/installation.md (section 'GPU support (PyTorch)') for details.\n",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         # Resolve GPU list
         if len(args.gpu) == 0:
             gpu_list = [0]

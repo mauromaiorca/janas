@@ -92,13 +92,20 @@ janas_core = Extension(
 
 setup(
     name='janas',
-    version='1.0.5',
+    version='1.0.6',
     description='Pipeline for per-particle selection and 3D class reassignment in single-particle cryo-EM.',
     author='Mauro Maiorca',
     author_email='mauro.maiorca@cssb-hamburg.de',
     url='https://gitlab.com/topf-lab/janas',
     python_requires='>=3.8',
     install_requires=read_requirements('requirements.txt'),
+    extras_require={
+        # GPU support for janas_reconstructor (used when --noExternalPrograms
+        # --gpu N is set). Pulls torch from the default PyPI index. For a
+        # specific CUDA build, install torch manually with --index-url
+        # https://download.pytorch.org/whl/cuXYZ before/after this package.
+        'gpu': ['torch>=2.0'],
+    },
     packages=find_packages(where='src', include=['janas*']),
     package_dir={'': 'src'},
     ext_modules=[janas_core],

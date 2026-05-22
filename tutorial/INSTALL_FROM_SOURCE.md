@@ -86,9 +86,11 @@ janas --version
 
 ## GPU support (PyTorch)
 
-GPU-accelerated 3D reconstruction (used when `--noExternalPrograms --gpu N` is set) requires **PyTorch**. PyTorch is intentionally **not** declared in JANAS's `requirements.txt`, because the right wheel depends on your CUDA driver. Install it manually, choosing the wheel that matches your CUDA version.
+GPU-accelerated 3D reconstruction (used when `--noExternalPrograms --gpu N` is set) requires **PyTorch**. PyTorch is intentionally **not** in JANAS's `requirements.txt` by default, because the right wheel depends on your CUDA driver.
 
-Check your CUDA driver version with `nvidia-smi`, then pick the matching command from the [official PyTorch selector](https://pytorch.org/get-started/locally/). Examples:
+### Recommended: install the torch wheel matching your CUDA driver
+
+Check your CUDA driver with `nvidia-smi`, then pick the matching wheel from the [official PyTorch selector](https://pytorch.org/get-started/locally/). Examples:
 
 ```bash
 # CUDA 12.8
@@ -103,6 +105,14 @@ python -m pip install torch --index-url https://download.pytorch.org/whl/cu118
 # CPU-only (no GPU; reconstruction will work but be very slow)
 python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
+
+### Alternative: install via the `gpu` extra (from the source checkout)
+
+```bash
+pip install '.[gpu]'
+```
+
+Uses the default torch wheel from PyPI. Fine on many systems but may not match unusual CUDA driver versions — in that case use the explicit `--index-url` command above instead.
 
 If you only use RELION for reconstruction (omit `--noExternalPrograms`), PyTorch is **not** needed at all.
 

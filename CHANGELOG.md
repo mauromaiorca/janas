@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6
+
+- Add a `gpu` extra so `pip install 'janas[gpu]'` pulls a generic PyTorch wheel. Users who need a specific CUDA build should still install torch manually via `--index-url`.
+- `janas_reconstructor --gpu` now fails fast with a clear error message and install hints (including the `--index-url cu128 / cu121 / cu118` examples and `pip install 'janas[gpu]'`) when PyTorch is not available, instead of crashing inside torch-using code paths.
+
 ## 1.0.5
 
 - Revert the default CTF application mode for particle scoring from `modulate` back to `phaseflip`. This restores the manuscript-described behaviour for `janas scoreParticles`, `janas_session_manager new_select_session`, and `janas_session_manager classification_session`. `modulate` and `wiener` remain available via `--ctf-mode`.

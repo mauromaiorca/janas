@@ -23,13 +23,21 @@ If you see errors about `relion_reconstruct` or `relion_postprocess` not being f
 - Install RELION and ensure it is on your `PATH`, or
 - Use `--noExternalPrograms` to run JANAS without external dependencies (requires a GPU for reasonable performance on large datasets)
 
-### `ModuleNotFoundError: No module named 'torch'`
+### `ModuleNotFoundError: No module named 'torch'` / "PyTorch is required for GPU reconstruction"
 
-PyTorch is not declared in JANAS's `requirements.txt` because the correct wheel depends on your CUDA driver version. Install it manually before using `--noExternalPrograms --gpu N`. Check your CUDA driver with `nvidia-smi`, then install the matching wheel, e.g.:
+PyTorch is not in JANAS's `requirements.txt` by default because the correct wheel depends on your CUDA driver version. Two options:
 
-```bash
-python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
-```
+1. **Recommended** — install the torch wheel matching your CUDA driver (check with `nvidia-smi`):
+
+   ```bash
+   python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+   ```
+
+2. **Generic install** — uses the default torch wheel from PyPI:
+
+   ```bash
+   pip install 'janas[gpu]'
+   ```
 
 See the [Installation guide](installation.md#gpu-support-pytorch) for full details and other CUDA versions.
 
