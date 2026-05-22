@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.5
+
+- Revert the default CTF application mode for particle scoring from `modulate` back to `phaseflip`. This restores the manuscript-described behaviour for `janas scoreParticles`, `janas_session_manager new_select_session`, and `janas_session_manager classification_session`. `modulate` and `wiener` remain available via `--ctf-mode`.
+
 ## 1.0.4
 
 - Add `--noRecs` option to `janas_session_manager classification_session`. When set, the generated run script skips all per-class reconstructions and only performs scoring and class assignment. Per-class STAR files are still written, so the user can reconstruct each class independently with their preferred software (RELION, cryoSPARC, `janas_reconstructor`, etc.).

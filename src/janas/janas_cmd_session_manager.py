@@ -1086,7 +1086,7 @@ process_iteration() {
     run_script_cmd += 'if [ "${assessmentMethod}" = "median" ]; then\n'
     run_script_cmd += '    NUMPART_METHOD_FLAG="--median_res"\n'
     run_script_cmd += 'fi\n'
-    run_script_cmd += f'CTF_MODE="{as_str(data.get("ctf_mode", "modulate"))}"\n'
+    run_script_cmd += f'CTF_MODE="{as_str(data.get("ctf_mode", "phaseflip"))}"\n'
     run_script_cmd += f'do_subtraction="{as_str(data.get("do_subtraction", "False"))}"\n'
     run_script_cmd += f'subtraction_mask="{as_str(data.get("subtraction_mask", ""))}"\n'
     run_script_cmd += f'workingDir="{as_str(data.get("session_name"))}"\n'
@@ -1756,12 +1756,12 @@ scoring.add_argument(
 scoring.add_argument(
     "--ctf-mode",
     required=False,
-    default="modulate",
+    default="phaseflip",
     choices=["modulate", "phaseflip", "wiener"],
     help=(
         "CTF application mode for particle scoring: "
-        "'modulate' (multiply by full CTF, default), "
-        "'phaseflip' (sign of CTF), or "
+        "'modulate' (multiply by full CTF), "
+        "'phaseflip' (sign of CTF, default), or "
         "'wiener' (CTF / (CTF^2 + 0.1))."
     ),
 )
@@ -2560,12 +2560,12 @@ janas_classification_session.add_argument(
     "--ctf-mode",
     required=False,
     type=str,
-    default="modulate",
+    default="phaseflip",
     choices=["modulate", "phaseflip", "wiener"],
     help=(
         "CTF application mode for particle scoring: "
-        "'modulate' (multiply by full CTF, default), "
-        "'phaseflip' (sign of CTF), or "
+        "'modulate' (multiply by full CTF), "
+        "'phaseflip' (sign of CTF, default), or "
         "'wiener' (CTF / (CTF^2 + 0.1))."
     ),
 )

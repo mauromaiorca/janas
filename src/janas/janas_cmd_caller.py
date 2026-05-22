@@ -207,13 +207,13 @@ janas_scoreParticles.add_argument(
     required=False,
     type=str,
     choices=["modulate", "phaseflip", "wiener"],
-    default="modulate",
+    default="phaseflip",
     help=(
         "CTF application mode for particle scoring: "
-        "'modulate' (multiply by full CTF, default), "
-        "'phaseflip' (sign of CTF), or "
+        "'modulate' (multiply by full CTF), "
+        "'phaseflip' (sign of CTF, default), or "
         "'wiener' (CTF / (CTF^2 + 0.1)). "
-        "Default: modulate."
+        "Default: phaseflip."
     ),
 )
 janas_scoreParticles.add_argument(

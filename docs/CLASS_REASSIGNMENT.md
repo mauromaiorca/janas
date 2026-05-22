@@ -36,10 +36,10 @@ To force a specific CTF handling during scoring, add `--ctf-mode`:
 ```bash
 janas_session_manager classification_session \
     ... \
-    --ctf-mode phaseflip
+    --ctf-mode modulate
 ```
 
-Choices: `modulate` (default — multiplies by the full CTF), `phaseflip` (applies `sign(CTF)`), `wiener` (`CTF / (CTF² + 0.1)`).
+Choices: `phaseflip` (default — applies `sign(CTF)`), `modulate` (multiplies by the full CTF), `wiener` (`CTF / (CTF² + 0.1)`).
 
 ## Skipping reconstruction with `--noRecs`
 
