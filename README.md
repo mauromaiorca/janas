@@ -34,7 +34,7 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 
 | Workflow | Purpose |
 |----------|---------|
-| [CryoSPARC particle STAR recovery](docs/workflows/cryosparc_star_recovery.md) | Convert CryoSPARC `.cs` particle metadata to RELION/JANAS STAR format, normalise stack references, and restore original source particle image names after stack-based processing. |
+| [CryoSPARC particle STAR recovery](docs/workflows/cryosparc_star_recovery.md) | Convert CryoSPARC `.cs` particle metadata to RELION/JANAS STAR format, adjust stack references, and restore original source particle image names after stack-based processing. |
 
 ## Accessory utils
 

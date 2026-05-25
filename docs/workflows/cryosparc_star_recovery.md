@@ -1,6 +1,6 @@
 # CryoSPARC particle STAR recovery
 
-Convert particle metadata exported from CryoSPARC into a RELION/JANAS-compatible STAR file, normalise the stack reference, and restore the original source-particle provenance after stack-based processing.
+Convert particle metadata exported from CryoSPARC into a RELION/JANAS-compatible STAR file, adjust the stack reference, and restore the original source-particle provenance after stack-based processing.
 
 **When to use this.** Particles were consolidated into a single `.mrcs` stack using JANAS, processed in CryoSPARC, and exported back as metadata. The exported STAR file points to the consolidated stack rather than to the original particle stacks. If provenance was recorded during stack creation, `backmap_stars` restores the original references.
 
@@ -11,7 +11,7 @@ CryoSPARC .cs
      │  (1) csparc2star         → convert to STAR
      ▼
 .star  (CryoSPARC-internal path)
-     │  (2) --stackRename       → normalise stack path
+     │  (2) --stackRename       → adjust stack path
      ▼
 .star  (consolidated stack)
      │  (3) backmap_stars       → restore original provenance
@@ -191,7 +191,7 @@ class_J1003_4028particles/J1003_003_particlesOriginalParticles.star
 | File | Role |
 |------|------|
 | `J1003_003_particles.star` | Converted from the CryoSPARC `.cs` file. May still contain CryoSPARC-internal stack paths. |
-| `J1003_003_particlesStack.star` | `_rlnImageName` normalised to `EMPIAR_12707_stack.mrcs`. |
+| `J1003_003_particlesStack.star` | `_rlnImageName` adjusted to `EMPIAR_12707_stack.mrcs`. |
 | `J1003_003_particlesOriginalParticles.star` | `_rlnImageName` restored to the original source-particle references. |
 
 In short:
