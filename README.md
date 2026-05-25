@@ -29,6 +29,13 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 | [Iterative particle selection](docs/ITERATIVE_SELECTION.md)  | Score, rank and select particle subsets that maximise local resolution. |
 |  [3D class reassignment](docs/CLASS_REASSIGNMENT.md)  | Assign particles to pre-computed classes using per-map SCI scores. |
 
+
+## Interoperability workflows
+
+| Workflow | Purpose |
+|----------|---------|
+| [CryoSPARC particle STAR recovery](docs/workflows/cryosparc-star-recovery.md) | Convert CryoSPARC `.cs` particle metadata to RELION/JANAS STAR format, normalise stack references, and restore original source particle image names after stack-based processing. |
+
 ## Accessory utils
 
 | Utility | Purpose |
