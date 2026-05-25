@@ -23,6 +23,18 @@ If you see errors about `relion_reconstruct` or `relion_postprocess` not being f
 - Install RELION and ensure it is on your `PATH`, or
 - Use `--noExternalPrograms` to run JANAS without external dependencies (requires a GPU for reasonable performance on large datasets)
 
+### `ModuleNotFoundError: No module named 'cmake'` (during `pip install .`)
+
+Some conda environments (e.g. colabfold's bundled conda) ship a Python wrapper at `<conda>/bin/cmake` that depends on the `cmake` Python package, but ship without that package installed. The build then fails inside our CMake step.
+
+Fix:
+
+```bash
+pip install 'cmake>=3.10'
+```
+
+Then retry `pip install .`. From v1.0.7 onwards, `cmake>=3.10` is declared as a build dependency in `pyproject.toml`, so this happens automatically under `pip`'s default build isolation.
+
 ### `ModuleNotFoundError: No module named 'torch'` / "PyTorch is required for GPU reconstruction"
 
 PyTorch is not in JANAS's `requirements.txt` by default because the correct wheel depends on your CUDA driver version. Two options:

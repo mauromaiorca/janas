@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+
+- Declare `cmake>=3.10` as a build-system requirement in `pyproject.toml`. Some Python environments (notably colabfold's bundled conda) ship a Python wrapper at `<env>/bin/cmake` that depends on the `cmake` Python package without installing it, breaking the build with `ModuleNotFoundError: No module named 'cmake'`. With this change, pip's default build isolation will install a working CMake before invoking our build.
+
 ## 1.0.6
 
 - Add a `gpu` extra so `pip install 'janas[gpu]'` pulls a generic PyTorch wheel. Users who need a specific CUDA build should still install torch manually via `--index-url`.
