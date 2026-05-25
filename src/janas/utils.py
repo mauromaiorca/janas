@@ -1426,6 +1426,292 @@ def create_stack_from_star(
 
 
 # ———————————————————————————————————————————————————————————————
+# backmap_stars — inverse companion of create_stack_from_star
+# ———————————————————————————————————————————————————————————————
+
+
+def _read_particle_section_df(star_path: str, section_name: str) -> pd.DataFrame:
+    """
+    Read the full particle section of ``star_path`` into a pandas DataFrame,
+    preserving every column and the on-disk row order.
+
+    This is a thin reader on top of ``starHandler.read_star_sections`` /
+    ``process_section`` that does **not** mutate or reformat values: every cell
+    is returned as a string. Used internally by :func:`backmap_stars` to read
+    the processed STAR file when we need to inspect (and not just rewrite)
+    the particle table.
+    """
+    sections = starHandler.read_star_sections(star_path)
+    if section_name not in sections:
+        available = ", ".join(repr(k) for k in sections.keys())
+        raise ValueError(
+            f"STAR file '{star_path}' has no data block named 'data_{section_name}'. "
+            f"Available blocks: {available or '(none)'}."
+        )
+
+    section_lines = sections[section_name]
+    header_lines = [ln for ln in section_lines if ln.startswith("_")]
+    data_lines = [
+        ln
+        for ln in section_lines
+        if not ln.startswith("_") and not ln.startswith("loop_")
+    ]
+    headers = [ln.split()[0] for ln in header_lines]
+    rows = [ln.split() for ln in data_lines]
+    return pd.DataFrame(rows, columns=headers)
+
+
+def backmap_stars(
+    processed_star: str,
+    mapping_star: str,
+    output_star: str,
+    image_tag: str = "_rlnImageName",
+    source_tag: str = "_janas_source_rlnImageName",
+    stack_reference_tag: Optional[str] = "_janas_stack_rlnImageName",
+    section_name: Optional[str] = None,
+    strict: bool = True,
+) -> Dict[str, Any]:
+    """
+    Restore original source particle image names in a downstream STAR file.
+
+    :func:`create_stack_from_star` can rewrite ``_rlnImageName`` so that particles
+    point to a consolidated ``.mrcs`` stack (for example
+    ``000022@EMPIAR_12707_stack.mrcs``). When that helper is called with a
+    ``provenance_tag``, the original source reference (for example
+    ``009640@J1149/restack/batch_6_restacked.mrc``) is preserved in a parallel
+    column, usually ``_janas_source_rlnImageName``.
+
+    Downstream processing (RELION refinement, cryoSPARC round-trips, manual
+    selection scripts, ...) sometimes preserves the rewritten
+    ``_rlnImageName`` column but drops the provenance column. The resulting
+    STAR file then no longer carries the link back to the original micrograph-
+    level particles.
+
+    ``backmap_stars`` restores that link by joining the downstream STAR file
+    against the stack-generation STAR file:
+
+        ``processed_star[_rlnImageName]``
+            → looked up in ``mapping_star[_rlnImageName]``
+            → replaced with ``mapping_star[_janas_source_rlnImageName]``
+
+    The processed STAR supplies the particle rows and all refined metadata
+    (angles, origins, defocus, optics group, random subset, class assignments,
+    JANAS scores, ...) that must be preserved exactly. The mapping STAR
+    supplies only the relation between consolidated stack names and original
+    source names.
+
+    The function uses the stack ``_rlnImageName`` as the lookup key — never
+    row number, angles, defocus, origins, or class number — so it is safe to
+    apply to a re-ordered subset of the original particles.
+
+    Parameters
+    ----------
+    processed_star : str
+        Downstream STAR file to fix. Its ``_rlnImageName`` currently points
+        to the consolidated stack. All other columns and row order are
+        preserved in the output.
+    mapping_star : str
+        STAR file produced by :func:`create_stack_from_star` with
+        ``provenance_tag=_janas_source_rlnImageName`` (or whatever is passed
+        as ``source_tag``). Must contain both ``image_tag`` and ``source_tag``
+        in its particle section.
+    output_star : str
+        Path of the new STAR file to write. Existing files at this path are
+        overwritten.
+    image_tag : str, default ``"_rlnImageName"``
+        Column that holds the consolidated-stack reference (both in
+        ``processed_star`` and ``mapping_star``).
+    source_tag : str, default ``"_janas_source_rlnImageName"``
+        Column in ``mapping_star`` that holds the original source reference.
+    stack_reference_tag : str or None, default ``"_janas_stack_rlnImageName"``
+        If not ``None``, an audit column with this name is added (or replaced)
+        in the output. Each row carries the previous (stack-based) value of
+        ``image_tag`` before the replacement, making the operation reversible.
+        Pass ``None`` to skip the audit column.
+    section_name : str or None, default ``None``
+        Name of the particle data block (without the ``data_`` prefix). If
+        ``None``, it is inferred per file via
+        :func:`_auto_particles_section_name` (``"particles"`` for
+        RELION 3.1, ``""`` for older STAR files).
+    strict : bool, default ``True``
+        If ``True``, raise :class:`ValueError` when at least one value in
+        ``processed_star[image_tag]`` is missing from the mapping. If
+        ``False``, leave such values unchanged, write the output, and report
+        them in the returned dictionary.
+
+    Returns
+    -------
+    dict
+        Report dictionary with the following keys:
+
+        - ``processed_star``, ``mapping_star``, ``output_star`` — input/output
+          file paths echoed back.
+        - ``section_name`` — particle section name used for the output write.
+        - ``image_tag``, ``source_tag``, ``stack_reference_tag`` — column
+          names actually used.
+        - ``n_processed`` — number of rows in the processed STAR.
+        - ``n_mapping_rows`` — number of rows in the mapping STAR.
+        - ``n_mapped`` — number of processed rows successfully remapped.
+        - ``n_missing`` — number of processed rows with no entry in the
+          mapping table (always 0 when ``strict=True`` succeeds).
+        - ``missing_examples`` — up to 10 example missing keys (only
+          populated when ``strict=False``).
+        - ``duplicate_keys`` — list of consolidated keys that appear more
+          than once in the mapping STAR but always map to the same source
+          (kept for audit; conflicting duplicates raise instead).
+
+    Raises
+    ------
+    ValueError
+        - ``mapping_star`` does not contain ``image_tag`` or ``source_tag``.
+        - either STAR file has no usable particle section.
+        - either STAR file has zero rows.
+        - the mapping table has duplicated keys that resolve to *different*
+          source names.
+        - some ``processed_star[image_tag]`` values are missing from the
+          mapping when ``strict=True``.
+
+    Examples
+    --------
+    >>> from janas import utils
+    >>> report = utils.backmap_stars(
+    ...     processed_star="run_it025_data.star",
+    ...     mapping_star="EMPIAR_12707_stack.star",
+    ...     output_star="run_it025_data_backmapped.star",
+    ... )
+    >>> print(report["n_mapped"], "/", report["n_processed"])
+    """
+    # ---------- 1. Resolve section names per file ----------
+    mapping_section = (
+        section_name
+        if section_name is not None
+        else _auto_particles_section_name(mapping_star)
+    )
+    processed_section = (
+        section_name
+        if section_name is not None
+        else _auto_particles_section_name(processed_star)
+    )
+
+    # ---------- 2. Read mapping STAR (only the two columns we need) ----------
+    map_df = starHandler.read_star_columns_from_sections(
+        mapping_star, mapping_section, [image_tag, source_tag]
+    )
+    if map_df is None or len(map_df) == 0:
+        raise ValueError(
+            f"Mapping STAR '{mapping_star}' has no particle rows in section "
+            f"'data_{mapping_section}' (or the section was not found)."
+        )
+    for required in (image_tag, source_tag):
+        if required not in map_df.columns:
+            raise ValueError(
+                f"Mapping STAR '{mapping_star}' is missing column '{required}' "
+                f"in section 'data_{mapping_section}'. "
+                f"Found columns: {list(map_df.columns)}."
+            )
+
+    n_mapping_rows = int(len(map_df))
+
+    # ---------- 3. Build the lookup, detecting duplicates ----------
+    lookup: Dict[str, str] = {}
+    duplicate_keys: List[str] = []
+    conflicting: Dict[str, set] = {}
+    for key, value in zip(map_df[image_tag], map_df[source_tag]):
+        if key in lookup:
+            if lookup[key] != value:
+                conflicting.setdefault(key, set()).add(lookup[key])
+                conflicting[key].add(value)
+            elif key not in duplicate_keys:
+                duplicate_keys.append(key)
+        else:
+            lookup[key] = value
+
+    if conflicting:
+        examples = list(conflicting.items())[:5]
+        bullets = "\n  - ".join(
+            f"{k!r} → {sorted(v)}" for k, v in examples
+        )
+        raise ValueError(
+            f"Mapping STAR '{mapping_star}' has {len(conflicting)} stack "
+            f"key(s) that resolve to more than one source name. "
+            f"Examples:\n  - {bullets}"
+        )
+
+    # ---------- 4. Read the processed STAR particle section in full ----------
+    processed_df = _read_particle_section_df(processed_star, processed_section)
+    if len(processed_df) == 0:
+        raise ValueError(
+            f"Processed STAR '{processed_star}' has no particle rows in "
+            f"section 'data_{processed_section}'."
+        )
+    if image_tag not in processed_df.columns:
+        raise ValueError(
+            f"Processed STAR '{processed_star}' is missing column "
+            f"'{image_tag}' in section 'data_{processed_section}'. "
+            f"Found columns: {list(processed_df.columns)}."
+        )
+
+    n_processed = int(len(processed_df))
+
+    # ---------- 5. Apply the mapping ----------
+    original_image_values = processed_df[image_tag].tolist()
+    missing_keys: List[str] = []
+    new_image_values: List[str] = []
+    for value in original_image_values:
+        if value in lookup:
+            new_image_values.append(lookup[value])
+        else:
+            missing_keys.append(value)
+            new_image_values.append(value)  # leave unchanged (used only if not strict)
+
+    n_missing = len(missing_keys)
+    n_mapped = n_processed - n_missing
+
+    if n_missing > 0 and strict:
+        sample = missing_keys[:10]
+        bullets = "\n  - ".join(repr(k) for k in sample)
+        raise ValueError(
+            f"{n_missing}/{n_processed} particles in '{processed_star}' have "
+            f"an '{image_tag}' value that is absent from the mapping STAR "
+            f"'{mapping_star}' (column '{image_tag}'). "
+            f"Example missing keys:\n  - {bullets}\n"
+            f"Pass strict=False to leave unmapped rows unchanged and report "
+            f"them in the result dictionary."
+        )
+
+    # ---------- 6. Prepare the update DataFrame ----------
+    # process_section overwrites/adds the columns we pass via positional
+    # alignment, so we hand it only the columns we actually want to change.
+    update_df = pd.DataFrame({image_tag: new_image_values})
+    if stack_reference_tag:
+        update_df[stack_reference_tag] = original_image_values
+
+    # ---------- 7. Write the output STAR ----------
+    starHandler.update_star_columns_from_sections(
+        filenameIn=processed_star,
+        filenameOut=output_star,
+        section_name=processed_section,
+        df=update_df,
+    )
+
+    return {
+        "processed_star": processed_star,
+        "mapping_star": mapping_star,
+        "output_star": output_star,
+        "section_name": processed_section,
+        "image_tag": image_tag,
+        "source_tag": source_tag,
+        "stack_reference_tag": stack_reference_tag,
+        "n_processed": n_processed,
+        "n_mapping_rows": n_mapping_rows,
+        "n_mapped": n_mapped,
+        "n_missing": n_missing,
+        "missing_examples": missing_keys[:10],
+        "duplicate_keys": duplicate_keys,
+    }
+
+
+# ———————————————————————————————————————————————————————————————
 def csparc2star(infile: str,
                 outfile: str,
                 transform: Optional[str] = None,

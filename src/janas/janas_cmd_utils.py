@@ -1374,6 +1374,78 @@ def create_stack_utils(args):
     )
 
 
+######################
+## backmap_stars
+janas_backmap_stars = command.add_parser(
+    "backmap_stars",
+    description=(
+        "Restore original source _rlnImageName values in a downstream STAR file by "
+        "joining against the STAR produced by create_stack (which carries "
+        "_janas_source_rlnImageName). Inverse companion of create_stack."
+    ),
+    help="restore original _rlnImageName via a stack-generation STAR mapping"
+)
+janas_backmap_stars.add_argument(
+    "--processed", required=True, dest="processed_star",
+    help="downstream STAR file to fix (its _rlnImageName points to the consolidated stack)."
+)
+janas_backmap_stars.add_argument(
+    "--mapping", required=True, dest="mapping_star",
+    help="stack-generation STAR file (contains _rlnImageName and _janas_source_rlnImageName)."
+)
+janas_backmap_stars.add_argument(
+    "--output", required=True, dest="output_star",
+    help="output STAR file with restored source _rlnImageName."
+)
+janas_backmap_stars.add_argument(
+    "--image-tag", default="_rlnImageName",
+    help="column holding the consolidated-stack reference (default: _rlnImageName)."
+)
+janas_backmap_stars.add_argument(
+    "--source-tag", default="_janas_source_rlnImageName",
+    help="column in --mapping that holds the original source reference "
+         "(default: _janas_source_rlnImageName)."
+)
+janas_backmap_stars.add_argument(
+    "--stack-reference-tag", default="_janas_stack_rlnImageName",
+    help="audit column to write into the output with the previous (stack-based) "
+         "_rlnImageName values. Pass '' to disable. "
+         "(default: _janas_stack_rlnImageName)"
+)
+janas_backmap_stars.add_argument(
+    "--section-name", default=None,
+    help="override the particle data block name. Inferred automatically if omitted."
+)
+janas_backmap_stars.add_argument(
+    "--no-strict", action="store_true",
+    help="leave unmapped _rlnImageName values unchanged instead of failing."
+)
+
+
+def backmap_stars_utils(args):
+    ref_tag = args.stack_reference_tag
+    if ref_tag is not None and ref_tag.strip() == "":
+        ref_tag = None
+    report = utils.backmap_stars(
+        processed_star=args.processed_star,
+        mapping_star=args.mapping_star,
+        output_star=args.output_star,
+        image_tag=args.image_tag,
+        source_tag=args.source_tag,
+        stack_reference_tag=ref_tag,
+        section_name=args.section_name,
+        strict=not args.no_strict,
+    )
+    print(
+        f"backmap_stars: mapped {report['n_mapped']}/{report['n_processed']} rows "
+        f"(missing={report['n_missing']}); wrote {report['output_star']}"
+    )
+    if report["n_missing"] > 0 and report["missing_examples"]:
+        print("  example missing keys:")
+        for k in report["missing_examples"]:
+            print(f"    - {k}")
+
+
 
 ######################
 ## get angpix
@@ -3190,6 +3262,8 @@ def main(command_line=None):
         csparc2star_stack_utils(args)
     elif args.command == "create_stack":
         create_stack_utils(args)
+    elif args.command == "backmap_stars":
+        backmap_stars_utils(args)
     elif args.command == "update_from_csparc":
         janas_update_from_csparc_utils(args)
     elif args.command == "angpix":

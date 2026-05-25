@@ -52,6 +52,7 @@ janas_utils <subcommand> [options]
 | `locresStats` | Extract statistics from a local resolution map |
 | `equalize_images` | Equalise amplitude spectra across multiple maps |
 | `csparc2star-stack` | Convert cryoSPARC `.cs` to STAR + assembled stack |
+| `backmap_stars` | Restore original `_rlnImageName` in a downstream STAR using the stack-generation STAR (inverse of `create_stack`) |
 | `csparc2star` | Convert cryoSPARC `.cs` to STAR (no stack assembly) |
 | `update_from_csparc` | Update STAR file metadata from a cryoSPARC `.cs` file |
 | `csparc_localnurefinement` | Run cryoSPARC local NU-refinement |

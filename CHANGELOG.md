@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.8
+
+- Add `utils.backmap_stars()` — the inverse companion of `create_stack_from_star`. Restores the original source `_rlnImageName` in a downstream STAR file by joining against the stack-generation STAR (which carries `_janas_source_rlnImageName`), preserving all refined metadata. Optionally writes `_janas_stack_rlnImageName` as an audit column so the rewrite is reversible.
+- Expose it as `janas_utils backmap_stars --processed P.star --mapping S.star --output O.star` (`--no-strict`, `--stack-reference-tag ""`, `--section-name` available).
+- Add `tests/test_backmap_stars.py` covering: row-order-independent mapping, metadata preservation, audit column, strict vs non-strict missing keys, missing provenance column in the mapping STAR, conflicting duplicate keys, tolerated consistent duplicate keys.
+
 ## 1.0.7
 
 - Declare `cmake>=3.10` as a build-system requirement in `pyproject.toml`. Some Python environments (notably colabfold's bundled conda) ship a Python wrapper at `<env>/bin/cmake` that depends on the `cmake` Python package without installing it, breaking the build with `ModuleNotFoundError: No module named 'cmake'`. With this change, pip's default build isolation will install a working CMake before invoking our build.

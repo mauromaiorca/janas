@@ -24,6 +24,19 @@ Compare two 3D maps using cross-correlation and related similarity measures (opt
 janas_utils compare_maps map1.mrc map2.mrc [--mask mask.mrc]
 ```
 
+## backmap_stars
+
+Inverse companion of `create_stack`. If a downstream STAR file (refined, classified, etc.) lost the `_janas_source_rlnImageName` provenance column added during stack creation, this utility restores the original source `_rlnImageName` by joining the downstream STAR against the stack-generation STAR. All refined metadata (angles, defocus, class numbers, ...) and row order are preserved.
+
+```bash
+janas_utils backmap_stars \
+    --processed run_it025_data.star \
+    --mapping   EMPIAR_12707_stack.star \
+    --output    run_it025_data_backmapped.star
+```
+
+By default an audit column `_janas_stack_rlnImageName` is added with the previous stack-based name so the rewrite is reversible. Pass `--stack-reference-tag ""` to skip it. Use `--no-strict` to leave unmapped rows unchanged instead of failing.
+
 ## csparc2star-stack
 
 Convert a CryoSPARC `.cs` file into a RELION-style STAR file and assemble a consolidated `.mrcs` particle stack from the original cryoSPARC stack locations.
