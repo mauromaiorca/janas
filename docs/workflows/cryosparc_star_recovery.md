@@ -1,6 +1,6 @@
 # CryoSPARC particle STAR recovery
 
-Convert particle metadata exported from CryoSPARC into a RELION/JANAS-compatible STAR file, adjust the stack reference, and restore the original source-particle provenance after stack-based processing.
+Convert particle metadata exported from CryoSPARC into a RELION/JANAS-compatible STAR file, adjust the stack reference, and (optionally) restore the original source-particle provenance after stack-based processing.
 
 **When to use this.** Particles were consolidated into a single `.mrcs` stack using JANAS, processed in CryoSPARC, and exported back as metadata. The exported STAR file points to the consolidated stack rather than to the original particle stacks. If provenance was recorded during stack creation, `backmap_stars` restores the original references.
 
@@ -14,7 +14,8 @@ CryoSPARC .cs
      │  (2) --stackRename       → adjust stack path
      ▼
 .star  (consolidated stack)
-     │  (3) backmap_stars       → restore original provenance
+
+     │  (3) backmap_stars       → Optional restore original provenance
      ▼
 .star  (original source particles)
 ```
@@ -56,7 +57,7 @@ The effective stack file is therefore `EMPIAR_12707_stack.mrcs`.
 
 ---
 
-## Step 2 — Normalise the stack name in `_rlnImageName`
+## Step 2 — Adjust the stack name in `_rlnImageName`
 
 **Why:** CryoSPARC writes the stack path as an internal symbolic link. This link breaks when the STAR file is moved or shared, so it is preferable to point `_rlnImageName` directly at the consolidated stack.
 
@@ -81,9 +82,9 @@ This step fixes the stack path only. It does not restore the original source-par
 
 ---
 
-## Step 3 — Restore the original source-particle image names
+## Step 3 — Optionally Restore the original source-particle image names
 
-**Why:** stack-based processing references the consolidated stack, not the original particles. This step restores the original provenance so that the final STAR file points back to the source particles.
+**Why:** stack-based processing references the consolidated stack, not the original particles. If you want to bring the stack back, and keep using in your pipeline, you might want to restores the original provenance so that the final STAR file points back to the source particles.
 
 **Background.** If the consolidated stack was created from an original STAR file, each particle originally had an `_rlnImageName` such as:
 
