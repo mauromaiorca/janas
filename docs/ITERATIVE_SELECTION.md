@@ -47,3 +47,123 @@ janas_session_manager new_select_session \
 3. If `--mpi` is greater than the number of particles being processed, it is reduced to the particle count.
 
 This means you can safely set `--mpi` to a generous value and JANAS will pick the largest reasonable number of workers without over-subscribing the machine. For best performance, set `--mpi` to the number of physical cores you want to dedicate to the run.
+
+---
+
+## Advanced example
+
+A typical command using most of the available options:
+
+```bash
+janas_session_manager new_select_session \
+    --name janas_selection_adptiveMaskRound01 \
+    --particles J606_004_particlesStack.star \
+    --map J606_004_particlesStack_recH1.mrc \
+    --map2 J606_004_particlesStack_recH2.mrc \
+    --mask maskFinal/mask_AB_dilated2.mrc \
+    --assessMask maskFinal/E12707_assessmentMask_AB.mrc \
+    --preGaussianBlur 1 \
+    --bootstrap \
+    --angpix 0.9540 \
+    --sigma 1 \
+    --maxSelections 15 \
+    --numRecs 10 \
+    --numViews 350 \
+    --mpi 80 \
+    --gpu 0 1 \
+    --noExternalPrograms \
+    --adaptive_mask
+```
+
+A second round using auto-sigma estimation from the half-maps of the previous round:
+
+```bash
+janas_session_manager new_select_session \
+    --name janas_selection_adptiveMaskRound02b \
+    --particles janas_selection_adptiveMaskRound01/refine_LR/particles_0004.star \
+    --map  janas_selection_adptiveMaskRound01/refine_LR/J899_004_volume_map_half_A.mrc \
+    --map2 janas_selection_adptiveMaskRound01/refine_LR/J899_004_volume_map_half_B.mrc \
+    --mask maskFinal/mask_AB_dilated2.mrc \
+    --assessMask maskFinal/E12707_assessmentMask_AB.mrc \
+    --preGaussianBlur 1 \
+    --bootstrap \
+    --angpix 0.9540 \
+    --autoSigma \
+    --maxSelections 15 \
+    --numRecs 10 \
+    --numViews 350 \
+    --mpi 70 \
+    --gpu 0 1 \
+    --noExternalPrograms \
+    --adaptive_mask
+```
+
+---
+
+## Parameters reference
+
+The arguments are grouped as in `janas_session_manager new_select_session --help`. Only the most frequently used options are listed here; run the command with `--help` for the full list including expert-level tuning parameters.
+
+### Core inputs
+
+| Flag | Required | Description |
+|---|---|---|
+| `--name` | yes | Name of the new session. Creates a directory and a TOML settings file inside it. |
+| `--particles` | yes | STAR file with the list of particles. |
+| `--map` | yes | First reference (a full reconstruction, or the first half-map of a pair). |
+| `--map2` | no | Second half-map. Required for any workflow that needs an independent half-map pair (gold-standard FSC, auto-sigma, bootstrap). |
+| `--angpix` | no | Pixel spacing in Å/pixel. If omitted, it is inferred from `--map`. |
+
+### Masks
+
+| Flag | Required | Description |
+|---|---|---|
+| `--mask` | yes | Main 3D mask used during particle scoring (defines the region of interest). |
+| `--assessMask` | no | MRC mask used **only** for the local-resolution assessment that drives the selection. If omitted, the main `--mask` is used. Useful when you want to score against a broad mask but optimise local resolution within a tighter region (for example, a single domain). |
+| `--adaptive_mask` | no | Build an adaptive assessment mask from `partialLocres.mrc` and use it for the final `locresStats` evaluation of each selection. The adaptive mask is recomputed every iteration as the reconstruction improves. |
+| `--adaptive_mask_locres_blur` | no | Gaussian sigma (default `1.0`) used by `janas_utils split_mask` when deriving the adaptive assessment mask. |
+| `--adaptive_mask_independent` | no | Force the current iteration to use an independent adaptive mask without merging it with the target adaptive mask. Implies `--adaptive_mask`. |
+| `--subtractionMask` | no | Optional 3D MRC mask defining the region to subtract during scoring (map-based signal subtraction). |
+
+### Scoring and assessment
+
+| Flag | Default | Description |
+|---|---|---|
+| `--sigma` | `1.0` | Gaussian sigma (in pixels) used by SCI scoring. Larger values smooth out high-frequency noise; smaller values emphasise fine structure. See [sigma_estimate](sigma_estimate.md) for the full theory. |
+| `--preGaussianBlur` | `0.0` | Gaussian blur applied to the input map(s) **before** scoring (sigma in Å). Use `0` (the default) to disable. A small blur (e.g. `1`) reduces sensitivity to high-frequency reconstruction artefacts when scoring against unsharpened half-maps. |
+| `--ctf-mode` | `phaseflip` | CTF application mode for particle scoring: `modulate` (multiply by the full CTF), `phaseflip` (sign of CTF), or `wiener` (`CTF / (CTF² + 0.1)`). |
+| `--postprocessing` | `avg` | Post-processing mode used when combining half-maps: `avg` or `autobfac`. |
+| `--resolutionBestTarget` | `meanResolution` | Resolution statistic to optimise. One of `meanResolution`, `highResolution`, `highresolutionquartile`, `lowResolution`, `lowresolutionquartile`. |
+| `--assessmentMethod` | `mean` | Statistic used for local-resolution assessment: `mean` or `median`. |
+| `--maskingCrop` | off | Crop to the mask to accelerate local-resolution computation. |
+
+### Auto-sigma
+
+`--sigma` can be specified explicitly, or estimated automatically from the FSC between two half-maps (see [sigma_estimate](sigma_estimate.md)).
+
+| Flag | Description |
+|---|---|
+| `--autoSigma` | Estimate `--sigma` automatically. Requires either `--map` + `--map2` pointing to two **different** half-map files, or `--bootstrap` (which generates an independent half-map pair on the fly), or `--autoSigmaInitialHalfMaps`. |
+| `--autoSigmaInitialHalfMaps HALFM1 HALFM2` | Optional half-map pair used **only** for the initial auto-sigma estimate. If omitted, `--map` and `--map2` are used. Useful when the maps passed via `--map`/`--map2` are coupled (e.g. derived from the same reconstruction) and you want to seed the sigma estimate from an independent pair. |
+| `--autoSigmaMask MASK` | Optional mask used **only** for the auto-sigma estimation. Use `none` (or omit) to compute sigma without a mask. |
+
+### Iteration and optimisation
+
+| Flag | Default | Description |
+|---|---|---|
+| `--bootstrap` | off | Randomise the half-map assignments at each iteration. Recommended when running with `--autoSigma` against a single combined map, and useful in general for robustness. |
+| `--maxSelections` | `8` | Maximum number of selection iterations. Early termination kicks in if no improvement is observed for several consecutive iterations. |
+| `--numRecs` | `10` | Number of sampling reconstructions per selection iteration. More samples explore the particle-count axis more finely but cost roughly proportionally more reconstructions. |
+| `--numViews` | `350` | Number of Euler views used to partition the orientation sphere when ranking particles by SCI. Increase (e.g. to `1500`) for very large datasets with uniform angular coverage; decrease (e.g. to `100`) for small or strongly oriented datasets. Going below ~50 is discouraged. |
+| `--aggressive` | off | Aggressively update the target particles from the current overview selection at each iteration. |
+| `--samplingDensityFactor` | `0.5` | Sampling density factor for reconstruction sampling. |
+| `--extraSamples_num` | `5` | Number of extra reconstruction samples used to escape local minima. |
+
+### Runtime and backend
+
+| Flag | Default | Description |
+|---|---|---|
+| `--mpi` | `5` | Number of CPU worker processes for particle scoring. Auto-capped to `cpu_count()` and to the particle count (see [About `--mpi`](#about--mpi)). |
+| `--gpu I [J ...]` | `[]` (CPU-only) | GPU indices for the internal reconstructor, for example `--gpu 0 1`. Affects only reconstruction and local resolution when used together with `--noExternalPrograms`. |
+| `--noExternalPrograms` | off | Generate a self-contained run script that avoids external software (RELION for reconstruction and local resolution). |
+| `--particleSubtraction` | off | Declare that the input stack comes from particle subtraction. The STAR file should then contain a backup field linking to the unsubtracted particles. |
