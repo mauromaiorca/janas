@@ -1207,6 +1207,35 @@ janas_csparc2star.add_argument(
     "--loglevel", "-l", default="WARNING",
     help="logging level (DEBUG, INFO, WARNING)"
 )
+janas_csparc2star.add_argument(
+    "--clean_path", action="store_true",
+    help=(
+        "Drop the directory from each blob path and keep only the filename "
+        "in the generated _rlnImageName. Overridden by --fix_path if both are set."
+    ),
+)
+janas_csparc2star.add_argument(
+    "--clean_prefix", action="store_true",
+    help=(
+        "Strip the leading numeric CryoSPARC prefix (matching '^\\d+_') from "
+        "the filename in each generated _rlnImageName. Applies only to the "
+        "filename, never to the directory."
+    ),
+)
+janas_csparc2star.add_argument(
+    "--clean_suffix", action="store_true",
+    help=(
+        "Strip a terminal '_particles' from the filename stem (before the "
+        "extension) in each generated _rlnImageName."
+    ),
+)
+janas_csparc2star.add_argument(
+    "--fix_path", default=None,
+    help=(
+        "Replace the original directory in each blob path with this path. "
+        "A trailing slash is tolerated. Takes precedence over --clean_path."
+    ),
+)
 def list_cs_fields(cs_file: str):
     arr = np.load(cs_file, max_header_size=100000)
     print(">>> available dtype.names in", cs_file)
@@ -1217,7 +1246,11 @@ def csparc2star_utils(args):
     #list_cs_fields(args.input[0])
     utils.csparc2star(
         infile=args.input[0],
-        outfile=args.output
+        outfile=args.output,
+        clean_path=args.clean_path,
+        clean_prefix=args.clean_prefix,
+        clean_suffix=args.clean_suffix,
+        fix_path=args.fix_path,
     )
 
 

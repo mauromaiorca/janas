@@ -1712,13 +1712,99 @@ def backmap_stars(
 
 
 # ———————————————————————————————————————————————————————————————
+# ———————————————————————————————————————————————————————————————
+# Helper for rewriting CryoSPARC blob paths in _rlnImageName
+# ———————————————————————————————————————————————————————————————
+
+# Matches a numeric CryoSPARC prefix at the start of a filename: digits
+# followed by a single underscore. Only used against the filename component
+# of a blob path, never against the directory part.
+_CSPARC_NUMERIC_PREFIX_RE = re.compile(r"^\d+_")
+
+# Matches a terminal "_particles" immediately before the file extension, e.g.
+# "..._particles.mrc" -> "....mrc" (stem). Multi-component extensions are
+# preserved because we operate on os.path.splitext (which only splits the
+# last dot, as RELION/cryoSPARC files use ".mrc" / ".mrcs").
+_CSPARC_PARTICLES_SUFFIX_RE = re.compile(r"_particles$")
+
+
+def _clean_csparc_blob_path(
+    blob_path: str,
+    clean_path: bool = False,
+    clean_prefix: bool = False,
+    clean_suffix: bool = False,
+    fix_path: Optional[str] = None,
+) -> str:
+    """
+    Rewrite a CryoSPARC ``blob/path`` value before it is used as a RELION
+    ``_rlnImageName``.
+
+    The operations are applied in a fixed order and only affect the
+    filename / directory components of ``blob_path``:
+
+    1. backslashes are converted to forward slashes;
+    2. leading ``>`` characters (CryoSPARC stream marker) are stripped;
+    3. the path is split into directory and filename on the last ``/``;
+    4. if ``clean_prefix``, the leading ``<digits>_`` prefix is stripped from
+       the *filename*;
+    5. if ``clean_suffix``, a terminal ``_particles`` is stripped from the
+       filename *stem* (the extension is preserved);
+    6. directory selection:
+
+       - if ``fix_path`` is given, the original directory is replaced by it
+         (it takes precedence over ``clean_path``); a trailing ``/`` in
+         ``fix_path`` is normalised so the output does not contain ``//``;
+       - else if ``clean_path``, the directory is dropped entirely and only
+         the filename is returned;
+       - otherwise the original directory is preserved.
+
+    When no option is supplied the path is returned essentially unchanged
+    (other than the backslash / leading-``>`` cleanups, which mirror what
+    :func:`csparc2star` already does on ``raw_paths``).
+    """
+    path_str = str(blob_path).replace("\\", "/").lstrip(">")
+
+    # Split on the last '/' to separate directory and filename.
+    if "/" in path_str:
+        directory, filename = path_str.rsplit("/", 1)
+    else:
+        directory, filename = "", path_str
+
+    if clean_prefix:
+        filename = _CSPARC_NUMERIC_PREFIX_RE.sub("", filename)
+
+    if clean_suffix:
+        stem, ext = os.path.splitext(filename)
+        new_stem = _CSPARC_PARTICLES_SUFFIX_RE.sub("", stem)
+        filename = new_stem + ext
+
+    if fix_path is not None:
+        # fix_path takes precedence over clean_path.
+        new_dir = str(fix_path).replace("\\", "/").rstrip("/")
+        return f"{new_dir}/{filename}" if new_dir else filename
+    if clean_path:
+        return filename
+    if directory:
+        return f"{directory}/{filename}"
+    return filename
+
+
 def csparc2star(infile: str,
                 outfile: str,
                 transform: Optional[str] = None,
-                loglevel: str = "WARNING") -> None:
+                loglevel: str = "WARNING",
+                clean_path: bool = False,
+                clean_prefix: bool = False,
+                clean_suffix: bool = False,
+                fix_path: Optional[str] = None) -> None:
     """
     Convert a CryoSPARC .cs to a Relion .star with both data_optics
     and data_particles sections, using alignments3D/pose & shift.
+
+    The optional ``clean_path``, ``clean_prefix``, ``clean_suffix`` and
+    ``fix_path`` arguments rewrite the ``blob/path`` portion of the
+    generated ``_rlnImageName`` values (see :func:`_clean_csparc_blob_path`
+    for the exact semantics). All other STAR columns are unaffected.
     """
     log = logging.getLogger("csparc2star")
 
@@ -1819,11 +1905,20 @@ def csparc2star(infile: str,
     orig_y = shifts[:,1] * psize3
 
     # 7) Construct Relion‐style image names
+    cleaned_paths = raw_paths.map(
+        lambda p: _clean_csparc_blob_path(
+            p,
+            clean_path=clean_path,
+            clean_prefix=clean_prefix,
+            clean_suffix=clean_suffix,
+            fix_path=fix_path,
+        )
+    )
     idx_series = pd.Series(cs["blob/idx"].astype(int) + 1)
     image_names = (
         idx_series.astype(str)
                   .str.zfill(6)
-                  .str.cat(raw_paths, sep="@")
+                  .str.cat(cleaned_paths, sep="@")
     ).to_numpy()
 
     # 8) Build the particle table with optics columns
