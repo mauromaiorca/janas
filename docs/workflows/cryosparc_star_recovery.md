@@ -6,7 +6,7 @@ Several tools can already convert CryoSPARC `.cs` files into STAR files for read
 
 This workflow therefore does more than convert metadata. It helps restore a usable filesystem logic after CryoSPARC export. `csparc2star` can clean or replace CryoSPARC-generated paths during conversion, so that `_rlnImageName` points to files that exist in the user-defined processing environment. When particles have been consolidated into a new stack, as commonly done in JANAS to simplify processing and export, the same conversion step can also prepare the STAR file for provenance recovery. If a JANAS stack-generation STAR file is available, `backmap_stars` can then restore the original source-particle references.
 
-This tutorial covers two related situations.
+This section covers two related situations.
 
 First, CryoSPARC may export `_rlnImageName` values that contain internal job paths and long numeric prefixes before the stack filename, for example:
 
