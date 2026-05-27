@@ -1236,6 +1236,18 @@ janas_csparc2star.add_argument(
         "A trailing slash is tolerated. Takes precedence over --clean_path."
     ),
 )
+janas_csparc2star.add_argument(
+    "--missing_pose_to_zero", action="store_true",
+    help=(
+        "Allow conversion when the input .cs has no 3D alignment metadata "
+        "(typical for extraction/picking/passthrough/coordinate-only jobs). "
+        "Missing alignments3D/pose -> _rlnAngleRot/Tilt/Psi = 0; missing "
+        "alignments3D/shift -> _rlnOriginXAngst/_rlnOriginYAngst = 0. "
+        "Without this flag, missing pose/shift raises a clear error. "
+        "Note: the resulting STAR is unaligned, and the origin columns are "
+        "refinement shifts (not extraction coordinates)."
+    ),
+)
 def list_cs_fields(cs_file: str):
     arr = np.load(cs_file, max_header_size=100000)
     print(">>> available dtype.names in", cs_file)
@@ -1251,6 +1263,7 @@ def csparc2star_utils(args):
         clean_prefix=args.clean_prefix,
         clean_suffix=args.clean_suffix,
         fix_path=args.fix_path,
+        missing_pose_to_zero=args.missing_pose_to_zero,
     )
 
 

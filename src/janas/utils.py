@@ -1947,7 +1947,8 @@ def csparc2star(infile: str,
                 clean_path: bool = False,
                 clean_prefix: bool = False,
                 clean_suffix: bool = False,
-                fix_path: Optional[str] = None) -> None:
+                fix_path: Optional[str] = None,
+                missing_pose_to_zero: bool = False) -> None:
     """
     Convert a CryoSPARC .cs to a Relion .star with both data_optics
     and data_particles sections, using alignments3D/pose & shift.
@@ -1956,6 +1957,20 @@ def csparc2star(infile: str,
     ``fix_path`` arguments rewrite the ``blob/path`` portion of the
     generated ``_rlnImageName`` values (see :func:`_clean_csparc_blob_path`
     for the exact semantics). All other STAR columns are unaffected.
+
+    The ``missing_pose_to_zero`` flag controls behaviour when the input
+    ``.cs`` file lacks 3D alignment metadata. CryoSPARC extraction,
+    picking, passthrough or coordinate-only jobs typically produce files
+    without an ``alignments3D/pose`` (and often without
+    ``alignments3D/shift``) field. By default this is a hard error, so the
+    caller is not silently given an unaligned STAR file. When
+    ``missing_pose_to_zero=True``, any missing pose is replaced by zero
+    Euler angles and any missing shift by zero origin shifts, producing
+    an explicitly unaligned STAR file. The resulting
+    ``_rlnOriginXAngst`` / ``_rlnOriginYAngst`` are refinement shifts
+    (not particle extraction coordinates) — use this option only when an
+    unaligned STAR is intended, or when alignment will be supplied by a
+    subsequent processing step.
     """
     log = logging.getLogger("csparc2star")
 
@@ -2033,27 +2048,105 @@ def csparc2star(infile: str,
         return np.degrees([α, β, γ])
 
     # 4) Build rotation matrices from CryoSPARC pose
-    pose_arr = np.stack(cs["alignments3D/pose"])
-    Kdim = pose_arr.shape[1]
-    if Kdim == 3:
-        Rmats = [_expmap_to_R(v) for v in pose_arr]
-    elif Kdim == 4:
-        q = pose_arr[:, [1,2,3,0]]  # reorder to x,y,z,w
-        Rmats = Rotation.from_quat(q).as_matrix()
-    elif Kdim == 9:
-        Rmats = pose_arr.reshape(-1, 3, 3)
-    else:
-        raise ValueError(f"Unrecognized pose length {Kdim}")
+    #
+    # Extraction / picking / passthrough .cs files commonly do not contain
+    # alignments3D/pose. Without --missing_pose_to_zero this is a hard error,
+    # so the user is not silently given an unaligned STAR.
+    cs_fields = set(cs.dtype.names)
+    pose_present = "alignments3D/pose" in cs_fields
+    if pose_present:
+        pose_arr = np.stack(cs["alignments3D/pose"])
+        Kdim = pose_arr.shape[1]
+        if Kdim == 3:
+            Rmats = [_expmap_to_R(v) for v in pose_arr]
+        elif Kdim == 4:
+            q = pose_arr[:, [1, 2, 3, 0]]  # reorder to x,y,z,w
+            Rmats = Rotation.from_quat(q).as_matrix()
+        elif Kdim == 9:
+            Rmats = pose_arr.reshape(-1, 3, 3)
+        else:
+            raise ValueError(f"Unrecognized pose length {Kdim}")
 
-    # 5) Convert each rotation to φ, θ, ψ
-    eulers = np.vstack([_R_to_zyz(Rm) for Rm in Rmats])
-    phi, theta, psi = eulers[:,0], eulers[:,1], eulers[:,2]
+        # 5) Convert each rotation to φ, θ, ψ
+        eulers = np.vstack([_R_to_zyz(Rm) for Rm in Rmats])
+        phi, theta, psi = eulers[:, 0], eulers[:, 1], eulers[:, 2]
+    elif missing_pose_to_zero:
+        log.warning(
+            "alignments3D/pose missing in '%s'; writing zero Euler angles "
+            "(_rlnAngleRot=_rlnAngleTilt=_rlnAnglePsi=0) for %d particles "
+            "because --missing_pose_to_zero was set.",
+            infile, N,
+        )
+        phi = np.zeros(N, dtype=float)
+        theta = np.zeros(N, dtype=float)
+        psi = np.zeros(N, dtype=float)
+    else:
+        raise ValueError(
+            f"'{infile}' has no 'alignments3D/pose' field. "
+            "This is normal for CryoSPARC extraction, picking, passthrough or "
+            "coordinate-only jobs, which carry particle blob/location metadata "
+            "but no 3D refinement alignment. "
+            "csparc2star normally writes the RELION orientation columns "
+            "_rlnAngleRot, _rlnAngleTilt, _rlnAnglePsi, _rlnOriginXAngst and "
+            "_rlnOriginYAngst from alignments3D/{pose,shift}. "
+            "Rerun with '--missing_pose_to_zero' if you intentionally want a "
+            "STAR with zero angles and zero origins (the result is an "
+            "unaligned STAR file — only do this when that is intended or "
+            "when alignments will be supplied by a later processing step). "
+            "_rlnOriginXAngst / _rlnOriginYAngst are refinement shifts, "
+            "not particle extraction coordinates."
+        )
 
     # 6) Compute origins in Å from shift × pixel size
-    shifts = np.stack(cs["alignments3D/shift"])
-    psize3 = cs["alignments3D/psize_A"]
-    orig_x = shifts[:,0] * psize3
-    orig_y = shifts[:,1] * psize3
+    #
+    # Extraction-style .cs files typically also lack alignments3D/shift. With
+    # --missing_pose_to_zero we substitute zero origins and skip the pixel-
+    # size lookup entirely (it is only needed to convert shifts to Å). If
+    # alignments3D/psize_A is missing but a shift IS present (uncommon), fall
+    # back first to blob/psize_A and then to location/micrograph_psize_A.
+    shift_present = "alignments3D/shift" in cs_fields
+    if shift_present:
+        shifts = np.stack(cs["alignments3D/shift"])
+        if "alignments3D/psize_A" in cs_fields:
+            psize3 = cs["alignments3D/psize_A"]
+        elif "blob/psize_A" in cs_fields:
+            log.warning(
+                "alignments3D/psize_A missing in '%s'; using blob/psize_A to "
+                "convert shifts to Å.",
+                infile,
+            )
+            psize3 = cs["blob/psize_A"]
+        elif "location/micrograph_psize_A" in cs_fields:
+            log.warning(
+                "alignments3D/psize_A missing in '%s'; using "
+                "location/micrograph_psize_A to convert shifts to Å.",
+                infile,
+            )
+            psize3 = cs["location/micrograph_psize_A"]
+        else:
+            raise ValueError(
+                f"'{infile}' has alignments3D/shift but no pixel-size field "
+                "(tried alignments3D/psize_A, blob/psize_A, "
+                "location/micrograph_psize_A). Shifts cannot be converted "
+                "to Å for _rlnOriginXAngst / _rlnOriginYAngst."
+            )
+        orig_x = shifts[:, 0] * psize3
+        orig_y = shifts[:, 1] * psize3
+    elif missing_pose_to_zero:
+        log.warning(
+            "alignments3D/shift missing in '%s'; writing zero origins "
+            "(_rlnOriginXAngst=_rlnOriginYAngst=0) for %d particles "
+            "because --missing_pose_to_zero was set.",
+            infile, N,
+        )
+        orig_x = np.zeros(N, dtype=float)
+        orig_y = np.zeros(N, dtype=float)
+    else:
+        raise ValueError(
+            f"'{infile}' has no 'alignments3D/shift' field. "
+            "Pass --missing_pose_to_zero to write zero origins "
+            "(_rlnOriginXAngst=_rlnOriginYAngst=0)."
+        )
 
     # 7) Construct Relion‐style image names
     cleaned_paths = raw_paths.map(
