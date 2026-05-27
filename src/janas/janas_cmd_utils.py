@@ -1396,6 +1396,20 @@ janas_create_stack.add_argument(
     help="Optional STAR tag to store the original _rlnImageName (default: _janas_source_rlnImageName). "
          "Use '' to disable."
 )
+janas_create_stack.add_argument(
+    "--path_mode", "--path-mode",
+    dest="path_mode",
+    default="auto",
+    choices=["auto", "root", "as_is", "star_dir"],
+    help=(
+        "How to resolve relative stack paths read from _rlnImageName. "
+        "'auto' (default): try --root, then the path as written (CWD-relative), "
+        "then the directory of the input STAR file; the first existing match wins. "
+        "'root': resolve against --root only (original CryoSPARC behaviour). "
+        "'as_is': use the path exactly as written; relative paths are CWD-relative. "
+        "'star_dir': resolve relative paths against the directory containing the input STAR."
+    ),
+)
 
 def create_stack_utils(args):
     prov = args.provenance_tag if (args.provenance_tag and len(args.provenance_tag.strip()) > 0) else None
@@ -1403,7 +1417,8 @@ def create_stack_utils(args):
         star_in=args.input_star,
         out_root=args.output_root,
         project_root=(os.path.abspath(args.root) if args.root else None),
-        provenance_tag=prov
+        provenance_tag=prov,
+        path_mode=args.path_mode,
     )
 
 

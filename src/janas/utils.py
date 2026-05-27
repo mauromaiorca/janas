@@ -1256,6 +1256,114 @@ def resolve_stack_path_from_image_name(image_name: str, project_root: Optional[s
     return image_no - 1, stack_path
 
 
+# Supported path-resolution modes for create_stack_from_star. See the
+# `--path_mode` CLI flag for the user-facing description.
+_VALID_PATH_MODES = ("auto", "root", "as_is", "star_dir")
+
+
+def _candidate_stack_paths(
+    stack_rel: str,
+    project_root: Optional[str],
+    star_dir: Optional[str],
+    path_mode: str,
+) -> List[str]:
+    """
+    Return the candidate absolute paths to try for ``stack_rel`` under the
+    requested ``path_mode``, in priority order.
+
+    Absolute ``stack_rel`` values are always honoured verbatim regardless of
+    mode. Relative values are joined to one or more bases depending on the
+    mode:
+
+    - ``"root"``    — join to ``project_root`` (or fall back to ``stack_rel``
+      as-is if no root was given).
+    - ``"as_is"``   — use ``stack_rel`` literally (CWD-relative when not
+      absolute).
+    - ``"star_dir"`` — join to ``star_dir`` (or fall back to ``stack_rel``).
+    - ``"auto"``    — try ``project_root``, then the path as-written, then
+      ``star_dir``. The caller picks the first existing one.
+
+    Strict modes return a single candidate; ``"auto"`` returns up to three.
+    """
+    if path_mode not in _VALID_PATH_MODES:
+        raise ValueError(
+            f"Unknown path_mode {path_mode!r}. "
+            f"Expected one of: {', '.join(_VALID_PATH_MODES)}."
+        )
+
+    # Absolute paths are taken at face value in every mode.
+    if path.isabs(stack_rel):
+        return [stack_rel]
+
+    if path_mode == "root":
+        if project_root:
+            return [path.normpath(path.join(project_root, stack_rel))]
+        return [path.normpath(stack_rel)]
+
+    if path_mode == "as_is":
+        return [path.normpath(stack_rel)]
+
+    if path_mode == "star_dir":
+        if star_dir:
+            return [path.normpath(path.join(star_dir, stack_rel))]
+        return [path.normpath(stack_rel)]
+
+    # path_mode == "auto"
+    candidates: List[str] = []
+    if project_root:
+        candidates.append(path.normpath(path.join(project_root, stack_rel)))
+    candidates.append(path.normpath(stack_rel))
+    if star_dir:
+        candidates.append(path.normpath(path.join(star_dir, stack_rel)))
+    # de-duplicate while preserving order
+    seen = set()
+    uniq: List[str] = []
+    for c in candidates:
+        if c not in seen:
+            seen.add(c)
+            uniq.append(c)
+    return uniq
+
+
+def _resolve_existing_stack_path(
+    image_name: str,
+    project_root: Optional[str],
+    star_dir: Optional[str],
+    path_mode: str,
+) -> Tuple[int, str]:
+    """
+    Decode an ``_rlnImageName`` entry and return ``(slice_idx0, stack_path)``.
+
+    In ``"auto"`` mode this probes the filesystem and returns the first
+    candidate that exists; if none exists, the first candidate is returned
+    so that the caller can produce a clear error message listing every
+    attempted location.
+
+    In strict modes (``"root"``, ``"as_is"``, ``"star_dir"``) the single
+    mode-dictated path is returned without filesystem checks; the caller
+    decides whether to error on a missing file.
+    """
+    at = image_name.find("@")
+    if at < 0:
+        raise ValueError(f"Invalid _rlnImageName entry (no '@'): {image_name}")
+    idx_str = image_name[:at].strip()
+    stack_rel = image_name[at + 1:].strip()
+    try:
+        image_no = int(idx_str)
+    except Exception:
+        raise ValueError(f"Invalid image index in _rlnImageName: {image_name}")
+
+    candidates = _candidate_stack_paths(stack_rel, project_root, star_dir, path_mode)
+    if path_mode == "auto":
+        for c in candidates:
+            if path.exists(c):
+                return image_no - 1, c
+        # Nothing exists; return the first candidate so the caller can emit
+        # an informative error listing all attempted locations.
+        return image_no - 1, candidates[0]
+    return image_no - 1, candidates[0]
+
+
 
 def _auto_particles_section_name(star_path: str) -> str:
     version = starHandler.infoStarFile(star_path)[2]
@@ -1272,10 +1380,25 @@ def _open_src_mm(src_stack: str, hdr: Dict[str, Any]) -> np.memmap:
     off = 1024 + int(hdr["nsymbt"])
     return np.memmap(src_stack, mode="r", dtype=dt, offset=off, shape=(nz, ny, nx), order="C")
 
-def _probe_first_stack(image_names: List[str], project_root: Optional[str]) -> Tuple[int, int, float]:
-    idx0, first_stack = resolve_stack_path_from_image_name(image_names[0], project_root)
+def _probe_first_stack(
+    image_names: List[str],
+    project_root: Optional[str],
+    star_dir: Optional[str] = None,
+    path_mode: str = "auto",
+) -> Tuple[int, int, float]:
+    idx0, first_stack = _resolve_existing_stack_path(
+        image_names[0], project_root, star_dir, path_mode
+    )
     if not path.exists(first_stack):
-        raise FileNotFoundError(f"Cannot locate source stack: {first_stack}")
+        attempted = _candidate_stack_paths(
+            image_names[0].split("@", 1)[1].strip()
+            if "@" in image_names[0] else image_names[0],
+            project_root, star_dir, path_mode,
+        )
+        raise FileNotFoundError(
+            f"Cannot locate source stack for particle '{image_names[0]}'. "
+            f"Path mode: {path_mode}. Tried: {attempted}."
+        )
     with open(first_stack, "rb") as f0:
         hdr0 = _read_mrc_header(f0)
     nx, ny = int(hdr0["nx"]), int(hdr0["ny"])
@@ -1290,12 +1413,29 @@ def create_stack_from_star(
     zfill_width: int = 6,
     override_section_name: Optional[str] = None,
     chunk_size: int = 128,  # number of slices to move per batch
+    path_mode: str = "auto",
 ) -> Tuple[str, str]:
     """
     Build a consolidated .mrcs with minimal open files:
       - group by source stack
       - open one memmap per group, copy slices (in chunks), close it
       - keep a single output memmap open
+
+    Path resolution for the source stacks referenced by ``_rlnImageName`` is
+    controlled by ``path_mode``:
+
+    - ``"auto"`` (default): try ``project_root``, then the path as written
+      (CWD-relative), then the directory of ``star_in``. The first existing
+      candidate is used.
+    - ``"root"``: resolve relative paths against ``project_root`` only
+      (matches the historical CryoSPARC ``--root`` behaviour).
+    - ``"as_is"``: use the path as written, never prepending ``project_root``.
+      Relative paths are taken to be CWD-relative.
+    - ``"star_dir"``: resolve relative paths against the directory containing
+      ``star_in``.
+
+    The generated output STAR always points to the new consolidated stack;
+    ``path_mode`` controls only how the *input* stacks are located on disk.
     """
     image_tag = "_rlnImageName"
     names_df = starHandler.readColumns(star_in, [image_tag])
@@ -1303,7 +1443,9 @@ def create_stack_from_star(
     if not image_names:
         raise ValueError("No _rlnImageName entries found in STAR.")
 
-    nx, ny, apix = _probe_first_stack(image_names, project_root)
+    star_dir = path.dirname(path.abspath(star_in)) or None
+
+    nx, ny, apix = _probe_first_stack(image_names, project_root, star_dir, path_mode)
     N = len(image_names)
     out_stack = f"{out_root}.mrcs"
     out_star  = f"{out_root}.star"
@@ -1320,9 +1462,18 @@ def create_stack_from_star(
     # Build work lists grouped by source stack → [(out_idx, slice_idx0), ...]
     by_stack: Dict[str, List[Tuple[int, int]]] = {}
     for ii, img_name in enumerate(image_names):
-        slice_idx0, src_stack = resolve_stack_path_from_image_name(img_name, project_root)
+        slice_idx0, src_stack = _resolve_existing_stack_path(
+            img_name, project_root, star_dir, path_mode
+        )
         if not path.exists(src_stack):
-            raise FileNotFoundError(f"Missing source stack '{src_stack}' for particle '{img_name}'.")
+            stack_rel = img_name.split("@", 1)[1].strip() if "@" in img_name else img_name
+            attempted = _candidate_stack_paths(
+                stack_rel, project_root, star_dir, path_mode
+            )
+            raise FileNotFoundError(
+                f"Missing source stack for particle '{img_name}'. "
+                f"Path mode: {path_mode}. Tried: {attempted}."
+            )
         by_stack.setdefault(src_stack, []).append((ii, slice_idx0))
 
     # Running stats (vectorised)
