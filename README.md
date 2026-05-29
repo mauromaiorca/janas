@@ -30,6 +30,11 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 |  [3D class reassignment](docs/CLASS_REASSIGNMENT.md)  | Assign particles to pre-computed classes using per-map SCI scores. |
 
 
+## Monitoring a running session
+
+JANAS records the outcome of every selection iteration in `overview.txt` and the timing of every individual processing step in `runtime/step_timings.csv`. While the session runs it also keeps an HTML dashboard, `progress.html`, in sync with the latest state. See [Monitoring a running session](docs/progress_dashboard.md) for how to view it locally or over SSH from a remote browser.
+
+
 ## Interoperability workflows
 
 | Workflow | Purpose |
