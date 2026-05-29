@@ -2401,6 +2401,43 @@ def settingBasedOptimization_subset_particle_check(args):
     print("true" if result else "false")
 
 
+#################################
+## progress (HTML dashboard)
+janas_progress_parser = command.add_parser(
+    "progress",
+    description=(
+        "Write a single progress.html in the session directory summarising "
+        "events.ndjson, status.txt, step_timings.csv and overview.txt."
+    ),
+    help="generate progress.html for the JANAS session",
+)
+janas_progress_parser.add_argument(
+    "--session", default=None,
+    help="JANAS session directory (the one containing overview.txt and "
+         "runtime/). If omitted, defaults to the current directory or, "
+         "with --overview, the parent of the overview file."
+)
+janas_progress_parser.add_argument(
+    "--overview", default=None,
+    help="Path to overview.txt; the session directory is inferred from it. "
+         "Mutually exclusive with --session."
+)
+janas_progress_parser.add_argument(
+    "--refresh", type=int, default=10,
+    help="Seconds for the HTML <meta http-equiv='refresh'> tag. 0 disables "
+         "auto-refresh (default: 10)."
+)
+janas_progress_parser.add_argument(
+    "--max-events", dest="max_events", type=int, default=100,
+    help="Maximum number of events rendered in the 'Recent events' section "
+         "(default: 100)."
+)
+janas_progress_parser.add_argument(
+    "--quiet", action="store_true",
+    help="Do not print the output file path on success."
+)
+
+
 def main(command_line=None):
     args = janas_parser.parse_args(command_line)
     if args.command == "getNumParticles":
@@ -2417,6 +2454,9 @@ def main(command_line=None):
         getTarget(args)
     elif args.command == "getSettings":
         getSettings(args)
+    elif args.command == "progress":
+        from janas import janas_progress
+        return janas_progress.cmd_progress(args)
     elif args.command == "settingBasedOptimization":
         if args.setting_action == "next_sigma":
             settingBasedOptimization_next_sigma(args)

@@ -495,6 +495,8 @@ _janas_exit_trap() {
       emit_runtime_event
     write_runtime_status "--" "session_end" "aborted" "" "" "${_et}"
     echo "[janas-log] Session aborted: ${workingDir}/runtime/" >&2
+    # Final progress.html refresh so the dashboard reflects the abort.
+    janas_optimizer progress --session "${workingDir}" --quiet >/dev/null 2>&1 || true
   fi
 }
 
@@ -514,6 +516,9 @@ init_runtime_logging() {
     _EV_STATUS="started" _EV_T_START="${_t}" \
     emit_runtime_event
   echo "[janas-log] Runtime logging started: ${_rt}/"
+  # Refresh progress.html after the initial event/status are on disk.
+  # Best-effort: never abort the scientific run because of a dashboard error.
+  janas_optimizer progress --session "${workingDir}" --quiet >/dev/null 2>&1 || true
 }
 
 run_step() {
@@ -592,6 +597,10 @@ run_step() {
     "$(date +%T)" "${_rs_step}" "${_rs_elapsed}" "${_rs_rc}" \
     | tee -a "${_rs_log}" || true
 
+  # Refresh progress.html after the step_end event and timings row are
+  # both on disk so the dashboard reflects the just-completed step.
+  janas_optimizer progress --session "${workingDir}" --quiet >/dev/null 2>&1 || true
+
   return "${_rs_rc}"
 }
 
@@ -605,6 +614,8 @@ finish_runtime_logging() {
     emit_runtime_event
   write_runtime_status "--" "session_end" "finished" "" "" "${_ft}"
   echo "[janas-log] Session finished: ${workingDir}/runtime/"
+  # Final progress.html refresh so the dashboard shows the "finished" state.
+  janas_optimizer progress --session "${workingDir}" --quiet >/dev/null 2>&1 || true
 }
 
 """

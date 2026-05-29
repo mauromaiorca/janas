@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.1.0
+
+- New subcommand `janas_optimizer progress` that writes a single
+  `progress.html` in the session directory summarising
+  `runtime/events.ndjson`, `runtime/status.txt`,
+  `runtime/step_timings.csv` and `overview.txt`. Includes a visual
+  "current stage" card (one of 6 bundled PNGs for the selection
+  workflow), per-step timings, recent events, resource info
+  (host / SLURM job / CUDA devices) and an `<meta http-equiv="refresh">`
+  for auto-reload. Classification sessions render a text-only variant
+  (no image card) so they work without per-step illustrations.
+- The 6 stage images ship inside the package
+  (`src/janas/images/selection_*.png`) and are copied once into
+  `<session>/runtime/imgs/`.
+- The runtime-logging shell helpers in the generated run script now
+  call `janas_optimizer progress --quiet` after every state change
+  (`init_runtime_logging`, end of every `run_step`,
+  `finish_runtime_logging`, and the abort EXIT trap), so the dashboard
+  stays fresh during the session without any manual polling. Each call
+  is `|| true`-guarded and silenced, so dashboard errors can never
+  abort the scientific run.
+
 ## 2.0.0
 
 - **Headless-safe plotting in `janas_optimizer`.** `predict_min_particles` and
