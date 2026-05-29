@@ -216,10 +216,15 @@ def _pick_stage(
     step_elapsed: Optional[int] = None
 
     if not events:
-        # Fall back to status.txt if events are empty (very early in run)
+        # Fall back to status.txt if events are empty (very early in run).
+        # Any signal that the session has actually started counts as
+        # "preprocessing" (phase 1) — keeping the dashboard on the
+        # 'unstarted' picture once the user has launched the script would
+        # be misleading.
         if status:
             state = "running"
-            label = "Initialising"
+            label = _phase_label(1, "")
+            image = image_for_phase(1)
             current_step = status.get("step", "")
             current_iter = status.get("iteration", "")
         return {
@@ -278,7 +283,12 @@ def _pick_stage(
                 except (TypeError, ValueError):
                     step_elapsed = None
         else:
-            label = "Session started"
+            # session_start has been emitted but no step_start yet: this is
+            # still preprocessing (phase 1). Showing the 'unstarted'
+            # picture once the user has actually launched the run would be
+            # misleading.
+            label = _phase_label(1, "")
+            image = image_for_phase(1)
 
     return {
         "image": image,

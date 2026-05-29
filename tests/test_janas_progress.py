@@ -103,6 +103,28 @@ def test_pick_stage_unstarted() -> None:
     assert stage["image"] == "selection_unstarted.png"
 
 
+def test_pick_stage_session_started_no_step_yet_uses_step1_image() -> None:
+    # Only session_start has been emitted (script has been launched but the
+    # first step_start has not been written yet). The dashboard must show
+    # the preprocessing image, not the unstarted one.
+    events = [
+        {"event": "session_start", "iteration": "0", "status": "started"},
+    ]
+    stage = P._pick_stage(events, status={}, session_kind="selection")
+    assert stage["state"] == "running"
+    assert stage["image"] == "selection_step1.png"
+
+
+def test_pick_stage_status_only_no_events_uses_step1_image() -> None:
+    # status.txt has been written (init_runtime_logging called) but the
+    # events file has not been flushed yet from the caller's point of
+    # view. Treat as preprocessing, not unstarted.
+    status = {"iteration": "0", "step": "init", "status": "starting"}
+    stage = P._pick_stage(events=[], status=status, session_kind="selection")
+    assert stage["state"] == "running"
+    assert stage["image"] == "selection_step1.png"
+
+
 def test_pick_stage_running_maps_step_to_image() -> None:
     events = [
         {"event": "session_start", "iteration": "0", "status": "started"},
@@ -275,6 +297,10 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
     ("step → phase: known steps map correctly", test_step_to_phase_known_steps),
     ("step → phase: unknown steps return None", test_step_to_phase_unknown),
     ("pick stage: unstarted by default", test_pick_stage_unstarted),
+    ("pick stage: session_start only -> step1 (preprocessing)",
+        test_pick_stage_session_started_no_step_yet_uses_step1_image),
+    ("pick stage: status only (no events) -> step1 (preprocessing)",
+        test_pick_stage_status_only_no_events_uses_step1_image),
     ("pick stage: running maps step to image", test_pick_stage_running_maps_step_to_image),
     ("pick stage: finished", test_pick_stage_finished),
     ("pick stage: aborted uses finished image with aborted badge",

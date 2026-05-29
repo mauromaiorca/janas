@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.1
+
+- Show `selection_step1.png` (preprocessing) as soon as the run script
+  has started instead of keeping `selection_unstarted.png` until the
+  first scientific step emits `step_start`. `selection_unstarted.png`
+  is now reserved for sessions that have not been launched at all
+  (no `status.txt`, no events). This covers two early states:
+  - only `runtime/status.txt` exists (init_runtime_logging has just
+    written its initial status but the events file has not been
+    flushed yet from the caller's point of view), and
+  - `events.ndjson` contains only `session_start` and no `step_start`
+    has been emitted yet.
+- Two new tests covering both early-startup transitions.
+
 ## 2.1.0
 
 - New subcommand `janas_optimizer progress` that writes a single

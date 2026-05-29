@@ -92,7 +92,7 @@ janas_core = Extension(
 
 setup(
     name='janas',
-    version='2.1.0',
+    version='2.1.1',
     description='Pipeline for per-particle selection and 3D class reassignment in single-particle cryo-EM.',
     author='Mauro Maiorca',
     author_email='mauro.maiorca@cssb-hamburg.de',
