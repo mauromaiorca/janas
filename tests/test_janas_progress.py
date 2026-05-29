@@ -1082,7 +1082,7 @@ def test_html_is_escaped() -> None:
 
 
 # ---------------------------------------------------------------------------
-# custom_selected_stacks/index.html
+# custom_selected_stacks/custom_selected_stacks.html
 # ---------------------------------------------------------------------------
 
 
@@ -1148,7 +1148,7 @@ def test_progress_html_links_to_custom_stacks() -> None:
         sd = _make_session(Path(tmp))
         out = P.write_progress_html(sd)
         text = out.read_text(encoding="utf-8")
-        assert 'href="custom_selected_stacks/index.html"' in text
+        assert 'href="custom_selected_stacks/custom_selected_stacks.html"' in text
 
 
 def test_custom_stacks_index_links_back_to_progress() -> None:
@@ -1156,7 +1156,7 @@ def test_custom_stacks_index_links_back_to_progress() -> None:
         sd = _make_session(Path(tmp))
         # Generate progress first so the index has the back-link to follow.
         P.write_progress_html(sd)
-        index = sd / "custom_selected_stacks" / "index.html"
+        index = sd / "custom_selected_stacks" / "custom_selected_stacks.html"
         assert index.exists()
         text = index.read_text(encoding="utf-8")
         assert 'href="../progress.html"' in text
@@ -1166,12 +1166,12 @@ def test_custom_stacks_index_links_back_to_progress() -> None:
 
 def test_write_progress_html_creates_custom_stacks_index() -> None:
     """write_progress_html must always materialise the companion folder
-    and index.html — even before any subset has been extracted."""
+    and custom_selected_stacks.html — even before any subset has been extracted."""
     with tempfile.TemporaryDirectory() as tmp:
         sd = _make_session(Path(tmp))
         P.write_progress_html(sd)
         assert (sd / "custom_selected_stacks").is_dir()
-        assert (sd / "custom_selected_stacks" / "index.html").exists()
+        assert (sd / "custom_selected_stacks" / "custom_selected_stacks.html").exists()
 
 
 # ---------------------------------------------------------------------------

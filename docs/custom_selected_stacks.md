@@ -113,12 +113,12 @@ top-`N` best-ranked particles. From there:
   session to confirm that the subset is not pathologically anisotropic
   before launching expensive repicking jobs.
 
-## Browsing extracted subsets — `custom_selected_stacks/index.html`
+## Browsing extracted subsets — `custom_selected_stacks/custom_selected_stacks.html`
 
 Alongside the per-subset folders, JANAS keeps a small companion page at
 
 ```
-<session_dir>/custom_selected_stacks/index.html
+<session_dir>/custom_selected_stacks/custom_selected_stacks.html
 ```
 
 with one row per extracted subset, showing:
@@ -134,11 +134,14 @@ with one row per extracted subset, showing:
 
 The page is created at session setup (with an empty table and a link
 back to `progress.html`) so it is always reachable from the dashboard,
-even before any subset has been produced. Every refresh of
-`progress.html` also refreshes this index.
+even before any subset has been produced. It is then refreshed every
+time `progress.html` is refreshed *and* every time you run
+`./extract_custom_selected_stack.sh <N>` — the extractor invokes
+`janas_optimizer progress --quiet` after writing the subset, so the new
+row appears in the dashboard without any manual step.
 
 `progress.html` contains a direct link to
-`custom_selected_stacks/index.html` in its header, next to the link to
+`custom_selected_stacks/custom_selected_stacks.html` in its header, next to the link to
 `settings.html`.
 
 ## Related

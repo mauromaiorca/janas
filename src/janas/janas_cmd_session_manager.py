@@ -1141,6 +1141,11 @@ JANAS custom selected stack
   host:           \$(hostname 2>/dev/null || echo unknown)
 MANIFEST_EOF
 
+# Refresh the companion HTML (custom_selected_stacks.html + progress.html)
+# so the new row shows up in the dashboard immediately. Best-effort: a
+# missing janas_optimizer on PATH must not fail the extraction.
+janas_optimizer progress --session "\${SESSION_DIR}" --quiet >/dev/null 2>&1 || true
+
 echo "Wrote \${OUT_DIR}/"
 EXTRACT_EOF
     chmod +x "${extractScript}"
@@ -2110,7 +2115,7 @@ def new_select_session(args):
         os.makedirs(args.name)
 
     # Create the custom_selected_stacks/ companion folder and the
-    # accompanying index.html at session setup so the link from
+    # accompanying custom_selected_stacks.html at session setup so the link from
     # progress.html is live from the very beginning. The table starts
     # empty and is repopulated by `janas_optimizer progress` on every
     # refresh as the user runs the extractor.

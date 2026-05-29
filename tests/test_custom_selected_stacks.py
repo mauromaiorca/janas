@@ -158,6 +158,14 @@ def test_session_manager_n_is_mandatory() -> None:
     assert 'if [ \\$# -lt 1 ]; then' in src
 
 
+def test_session_manager_refreshes_progress_after_extract() -> None:
+    """Each invocation of the extractor must refresh the companion HTML
+    (custom_selected_stacks.html + progress.html) by calling
+    ``janas_optimizer progress --quiet`` at the end."""
+    src = _session_manager_source()
+    assert 'janas_optimizer progress --session "\\${SESSION_DIR}" --quiet' in src
+
+
 # ---------------------------------------------------------------------------
 # Doc + README integration
 # ---------------------------------------------------------------------------
@@ -223,6 +231,8 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_session_manager_eulerhist_uses_fontscale_2),
     ("generated script makes N mandatory",
         test_session_manager_n_is_mandatory),
+    ("generated script refreshes companion HTML via janas_optimizer progress",
+        test_session_manager_refreshes_progress_after_extract),
     ("README links custom_selected_stacks between iterative selection and 3D class reassignment",
         test_readme_links_custom_selected_stacks_between_rows),
     ("doc references JANAS-based repicking, workflow and script usage",

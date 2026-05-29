@@ -1138,7 +1138,7 @@ def _render_html(
     # the Current stage card.
     custom_stacks_link_html = (
         '<div class="meta" style="margin-top:6px">Custom selected stacks: '
-        '<a href="custom_selected_stacks/index.html">'
+        '<a href="custom_selected_stacks/custom_selected_stacks.html">'
         'custom_selected_stacks/</a></div>'
     )
 
@@ -1402,7 +1402,7 @@ def write_settings_html(session_dir: Path, force: bool = False) -> Optional[Path
 
 
 # ---------------------------------------------------------------------------
-# custom_selected_stacks/index.html — companion view of ad-hoc subsets
+# custom_selected_stacks/custom_selected_stacks.html — companion view of ad-hoc subsets
 # ---------------------------------------------------------------------------
 
 
@@ -1583,7 +1583,7 @@ def _render_custom_stacks_rows(
 
 
 def write_custom_selected_stacks_html(session_dir: Path) -> Optional[Path]:
-    """Generate ``<session>/custom_selected_stacks/index.html``.
+    """Generate ``<session>/custom_selected_stacks/custom_selected_stacks.html``.
 
     Always creates the folder and the HTML file, even when no subsets
     have been extracted yet — the page is meant to be linked from
@@ -1610,7 +1610,7 @@ def write_custom_selected_stacks_html(session_dir: Path) -> Optional[Path]:
     full_png = session_dir / "runtime" / "imgs" / "eulerhist_input.png"
     full_dataset_png_rel: Optional[str] = None
     if full_png.exists():
-        # path is relative to <session>/custom_selected_stacks/index.html
+        # path is relative to <session>/custom_selected_stacks/custom_selected_stacks.html
         full_dataset_png_rel = "../runtime/imgs/eulerhist_input.png"
 
     rows_html = _render_custom_stacks_rows(records, full_dataset_png_rel)
@@ -1626,8 +1626,8 @@ def write_custom_selected_stacks_html(session_dir: Path) -> Optional[Path]:
         rows_html=rows_html,
     )
 
-    out_path = folder / "index.html"
-    tmp_path = folder / "index.html.tmp"
+    out_path = folder / "custom_selected_stacks.html"
+    tmp_path = folder / "custom_selected_stacks.html.tmp"
     try:
         tmp_path.write_text(html_text, encoding="utf-8")
         os.replace(tmp_path, out_path)
@@ -1667,7 +1667,7 @@ def write_progress_html(
         # secondary artefact.
         pass
 
-    # Generate (or refresh) the custom_selected_stacks/index.html companion
+    # Generate (or refresh) the custom_selected_stacks/custom_selected_stacks.html companion
     # page. Done BEFORE rendering progress.html so the header link to it
     # is always live (the index file is guaranteed to exist on disk).
     try:
