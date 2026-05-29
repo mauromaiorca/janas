@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.1.2
+
+- Show selection-iteration progress and dataset sizes in `progress.html`,
+  driven directly from `overview.txt`:
+  - **Iterations bar** under the current-stage image: one numbered chip
+    per `[[_janas_selection_N]]` block with `N > 0`. The iteration
+    referenced by `selection_number` in `[[_janas_target_selection]]`
+    is highlighted in green; all others are neutral.
+  - **Particle counts** below the step-info line:
+    `Full dataset: NNN,NNN particles · Selection: NNN,NNN particles`,
+    sourced from `_janas_selection_0.reference_num_particles` and
+    `_janas_target_selection.reference_num_particles` (with a
+    fall-back to the selection block pointed to by `selection_number`
+    when the target block does not carry the count itself).
+- Both sections degrade gracefully: if `overview.txt` is absent, or
+  contains no selections, or has no target, the relevant block is
+  omitted instead of rendered empty.
+- Three new tests covering the full extraction + rendering, the
+  missing-overview case and the missing-target case.
+
 ## 2.1.1
 
 - Show `selection_step1.png` (preprocessing) as soon as the run script

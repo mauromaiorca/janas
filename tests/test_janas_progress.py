@@ -335,6 +335,116 @@ def test_timing_table_uses_pass_fail_and_iteration_banding() -> None:
         assert "tr.iter-even td" in text or "tr.iter-even" in text
 
 
+def test_overview_data_extraction_and_rendering() -> None:
+    """End-to-end: overview.txt is parsed, iterations bar and particle
+    counts appear in the HTML, the target iteration is highlighted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "session_x"
+        sd.mkdir(parents=True, exist_ok=True)
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_target_selection]]\n'
+            'reference_starFile = "selected.star"\n'
+            'reference_num_particles = 45678\n'
+            'selection_number = 2\n'
+            '\n'
+            '[[_janas_selection_0]]\n'
+            'reference_starFile = "all.star"\n'
+            'reference_num_particles = 123456\n'
+            'selection_number = 0\n'
+            '\n'
+            '[[_janas_selection_1]]\n'
+            'reference_starFile = "iter1.star"\n'
+            'reference_num_particles = 90000\n'
+            'selection_number = 1\n'
+            '\n'
+            '[[_janas_selection_2]]\n'
+            'reference_starFile = "iter2.star"\n'
+            'reference_num_particles = 45678\n'
+            'selection_number = 2\n'
+            '\n'
+            '[[_janas_selection_3]]\n'
+            'reference_starFile = "iter3.star"\n'
+            'reference_num_particles = 60000\n'
+            'selection_number = 3\n',
+            encoding="utf-8",
+        )
+        # Minimal runtime/ so the rest of the renderer is happy
+        (sd / "runtime").mkdir(parents=True, exist_ok=True)
+
+        # Parser
+        data = P._read_overview_data(sd / "overview.txt")
+        assert data["iterations"] == [1, 2, 3], data
+        assert data["target_iter"] == 2, data
+        assert data["full_dataset_np"] == 123456, data
+        assert data["target_np"] == 45678, data
+
+        # Renderer
+        out = P.write_progress_html(sd)
+        text = out.read_text(encoding="utf-8")
+
+        # Iterations bar: three numbers; '2' is the current/green one
+        assert "Iterations:" in text
+        assert ">1<" in text and ">2<" in text and ">3<" in text
+        assert 'class="iter-num current">2<' in text
+        # '1' and '3' are NOT marked as current
+        assert 'class="iter-num">1<' in text
+        assert 'class="iter-num">3<' in text
+
+        # Particle counts with thousand separators
+        assert "Full dataset:" in text
+        assert "123,456" in text
+        assert "Selection:" in text
+        assert "45,678" in text
+
+
+def test_overview_missing_skips_iterations_and_counts() -> None:
+    """No overview.txt → neither the iterations bar nor the particle
+    counts should appear in the HTML."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "session_no_overview"
+        sd.mkdir(parents=True, exist_ok=True)
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "runtime").mkdir(parents=True, exist_ok=True)
+
+        out = P.write_progress_html(sd)
+        text = out.read_text(encoding="utf-8")
+        assert "Iterations:" not in text
+        assert "Full dataset:" not in text
+        assert "Selection:" not in text
+
+
+def test_overview_data_no_target_skips_highlight() -> None:
+    """If `[[_janas_target_selection]]` is missing, the iterations bar
+    must still render (with no green highlight) and particle counts
+    fall back to the full dataset only."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "session_no_target"
+        sd.mkdir(parents=True, exist_ok=True)
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_selection_0]]\n'
+            'reference_num_particles = 100000\n'
+            '\n'
+            '[[_janas_selection_1]]\n'
+            'reference_num_particles = 80000\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir(parents=True, exist_ok=True)
+
+        data = P._read_overview_data(sd / "overview.txt")
+        assert data["iterations"] == [1]
+        assert data["target_iter"] is None
+        assert data["full_dataset_np"] == 100000
+        assert data["target_np"] is None
+
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert "Iterations:" in text
+        assert 'class="iter-num current"' not in text
+        assert "Full dataset:" in text
+        assert "Selection:" not in text   # no target, no selection count
+
+
 def test_atomic_write() -> None:
     """Re-writing must not leave a stray progress.html.tmp."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -391,6 +501,12 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_write_progress_html_classification_session_text_only),
     ("timing table: 'Return code' header, PASS/FAIL cells, iteration banding",
         test_timing_table_uses_pass_fail_and_iteration_banding),
+    ("overview.txt: iterations bar + particle counts + target highlight",
+        test_overview_data_extraction_and_rendering),
+    ("overview.txt missing: bar and counts skipped",
+        test_overview_missing_skips_iterations_and_counts),
+    ("overview.txt without [[_janas_target_selection]]: bar without highlight",
+        test_overview_data_no_target_skips_highlight),
     ("atomic write leaves no .tmp file", test_atomic_write),
     ("HTML escapes injected step names", test_html_is_escaped),
 ]

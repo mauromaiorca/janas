@@ -24,6 +24,7 @@ import csv
 import html
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -150,6 +151,96 @@ def _read_overview_text(path: Path) -> Optional[str]:
         return None
     except OSError:
         return None
+
+
+def _read_overview_data(path: Path) -> Dict[str, Any]:
+    """
+    Parse ``overview.txt`` (a TOML document) and return the bits the
+    dashboard needs:
+
+      - ``iterations``     : sorted list of iteration indices ``> 0``,
+                             one entry per ``[[_janas_selection_N]]`` block
+                             (the ``_janas_selection_0`` block, which
+                             represents the full input dataset, is
+                             excluded — it is the reference, not an
+                             iteration).
+      - ``target_iter``    : iteration index referenced by
+                             ``selection_number`` in
+                             ``[[_janas_target_selection]]`` (or None).
+      - ``full_dataset_np``: ``reference_num_particles`` from
+                             ``[[_janas_selection_0]]`` (or None).
+      - ``target_np``      : ``reference_num_particles`` from
+                             ``[[_janas_target_selection]]``, falling
+                             back to the matching selection block if
+                             absent (or None).
+
+    Returns an empty dict on any read/parse error so the renderer can
+    silently skip the new sections.
+    """
+    try:
+        import toml as _toml  # noqa: WPS433 — third-party at function scope
+    except ImportError:
+        return {}
+    try:
+        data = _toml.load(str(path))
+    except (FileNotFoundError, OSError):
+        return {}
+    except Exception:  # noqa: BLE001 — toml.TomlDecodeError + any wrapper
+        return {}
+
+    selections: Dict[int, Dict[str, Any]] = {}
+    for key, val in data.items():
+        m = re.match(r"_janas_selection_(\d+)$", key)
+        if not m:
+            continue
+        idx = int(m.group(1))
+        if isinstance(val, list) and val:
+            row = val[0]
+        elif isinstance(val, dict):
+            row = val
+        else:
+            continue
+        if isinstance(row, dict):
+            selections[idx] = row
+
+    iter_indices = sorted(i for i in selections if i > 0)
+
+    target_block = data.get("_janas_target_selection")
+    target: Optional[Dict[str, Any]] = None
+    if isinstance(target_block, list) and target_block:
+        if isinstance(target_block[0], dict):
+            target = target_block[0]
+    elif isinstance(target_block, dict):
+        target = target_block
+
+    target_iter: Optional[int] = None
+    if target is not None:
+        raw = target.get("selection_number")
+        try:
+            target_iter = int(raw)
+        except (TypeError, ValueError):
+            target_iter = None
+
+    def _get_np(row: Optional[Dict[str, Any]]) -> Optional[int]:
+        if not isinstance(row, dict):
+            return None
+        v = row.get("reference_num_particles")
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+
+    full_dataset_np = _get_np(selections.get(0))
+    target_np = _get_np(target) if target else None
+    if target_np is None and target_iter is not None:
+        target_np = _get_np(selections.get(target_iter))
+
+    return {
+        "iterations": iter_indices,
+        "target_iter": target_iter,
+        "full_dataset_np": full_dataset_np,
+        "target_np": target_np,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +514,53 @@ def _format_recent_events(events: List[Dict[str, Any]], limit: int) -> str:
     return _esc("\n".join(lines))
 
 
+def _render_iterations_bar(overview_data: Dict[str, Any]) -> str:
+    """Render the 'Iterations: 1 2 3' line under the stage image.
+
+    Each iteration number is a <span class="iter-num">. The iteration
+    indicated by ``selection_number`` in ``[[_janas_target_selection]]``
+    additionally receives the ``current`` class, which the embedded CSS
+    paints in green.
+    """
+    iterations = overview_data.get("iterations") or []
+    if not iterations:
+        return ""
+    target_iter = overview_data.get("target_iter")
+    spans = []
+    for i in iterations:
+        cls = "iter-num current" if i == target_iter else "iter-num"
+        spans.append(f'<span class="{cls}">{int(i)}</span>')
+    return (
+        '<div class="iterations-line meta">'
+        '<span class="iterations-label">Iterations:</span> '
+        + "".join(spans)
+        + "</div>"
+    )
+
+
+def _render_particle_counts(overview_data: Dict[str, Any]) -> str:
+    """Render the 'Full dataset / Selection' particle-count line.
+
+    Numbers are formatted with thousand separators. If neither value is
+    available, returns the empty string so the calling template skips
+    the block entirely.
+    """
+    full = overview_data.get("full_dataset_np")
+    target = overview_data.get("target_np")
+    parts: List[str] = []
+    if full is not None:
+        parts.append(f"Full dataset: <strong>{int(full):,}</strong> particles")
+    if target is not None:
+        parts.append(f"Selection: <strong>{int(target):,}</strong> particles")
+    if not parts:
+        return ""
+    return (
+        '<div class="meta particle-counts">'
+        + " · ".join(parts)
+        + "</div>"
+    )
+
+
 def _format_resources(events: List[Dict[str, Any]]) -> Dict[str, str]:
     """Pull resource info (host, SLURM, CUDA) from the most recent events
     that carry those keys.
@@ -484,6 +622,15 @@ td.rc-ok {{ color: var(--ok); font-weight: 600; }}
 td.rc-bad {{ color: var(--err); font-weight: 600; }}
 tr.iter-odd  td {{ background: #f3f4f6; }}
 tr.iter-even td {{ background: var(--card); }}
+.iterations-line {{ margin: 8px 0 4px; font-variant-numeric: tabular-nums; }}
+.iterations-label {{ font-weight: 600; color: var(--muted); }}
+.iter-num {{ display: inline-block; min-width: 1.4em; padding: 1px 6px;
+             margin: 0 2px; border-radius: 4px; text-align: center;
+             color: var(--fg); background: transparent; }}
+.iter-num.current {{ background: var(--ok); color: white; font-weight: 700; }}
+.particle-counts {{ margin-top: 10px; padding-top: 8px;
+                    border-top: 1px solid var(--border); }}
+.particle-counts strong {{ color: var(--fg); }}
 pre {{ background: #f3f4f6; padding: 12px; border-radius: 6px;
        overflow: auto; font-size: 12px; line-height: 1.4;
        max-height: 320px; }}
@@ -500,12 +647,14 @@ Type: {session_kind} · Generated: {generated_at}</p>
   <div class="card">
     <h2>Current stage</h2>
     {stage_image_html}
+    {iterations_bar_html}
     <div class="stage-label">{stage_label}</div>
     <div class="meta">
       Iteration: <strong>{current_iter}</strong> ·
       Step: <code>{current_step}</code><br>
       Started: {step_started}{elapsed_str}
     </div>
+    {particle_counts_html}
   </div>
   <div class="card">
     <h2>Runtime</h2>
@@ -559,10 +708,13 @@ def _render_html(
     events = _iter_events(runtime_dir / "events.ndjson")
     timings = _read_step_timings(runtime_dir / "step_timings.csv")
     overview_text = _read_overview_text(session_dir / "overview.txt")
+    overview_data = _read_overview_data(session_dir / "overview.txt")
     session_kind = _detect_session_kind(session_dir)
 
     stage = _pick_stage(events, status, session_kind)
     resources = _format_resources(events)
+    iterations_bar_html = _render_iterations_bar(overview_data)
+    particle_counts_html = _render_particle_counts(overview_data)
 
     refresh_meta = (
         f'<meta http-equiv="refresh" content="{int(refresh_seconds)}">'
@@ -603,6 +755,8 @@ def _render_html(
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         ),
         stage_image_html=stage_image_html,
+        iterations_bar_html=iterations_bar_html,
+        particle_counts_html=particle_counts_html,
         stage_label=_esc(stage["label"]),
         current_iter=_esc(stage["current_iter"] or "--"),
         current_step=_esc(stage["current_step"] or "--"),
