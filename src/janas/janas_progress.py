@@ -693,14 +693,24 @@ def _render_particle_counts(
 
 def _resolve_star_path(value: Optional[str], session_dir: Path) -> Optional[Path]:
     """
-    Convert a star path as found in ``overview.txt`` (or in
-    ``session_settings.toml``) into an absolute filesystem path.
+    Convert a star path as found in ``overview.txt`` or
+    ``session_settings.toml`` into an absolute filesystem path.
 
-    ``overview.txt`` records paths from one level above the session
-    directory, so they usually start with the session-dir name and
-    must have that prefix stripped before being resolved against the
-    session directory itself. Absolute paths are returned unchanged.
-    Returns None for empty/missing inputs.
+    The run script is launched from one level above the session
+    directory, so both files store paths relative to ``session_dir.parent``
+    (the run script's working directory):
+
+      - ``session_settings.toml`` writes the literal ``--particles``
+        value, e.g. ``"reference_subset.star"`` → the file actually
+        lives at ``session_dir.parent / reference_subset.star``.
+      - ``overview.txt`` writes paths that already include the session
+        name, e.g. ``"janas_selection_example/_janas_SCI/best.star"``
+        → resolves under ``session_dir.parent`` the same way.
+
+    We therefore try ``session_dir.parent`` first, and only fall back
+    to ``session_dir`` for unusual layouts where the file was placed
+    next to ``session_settings.toml``. Absolute paths are returned
+    unchanged. Returns None for empty/missing inputs.
     """
     if not value:
         return None
@@ -710,10 +720,19 @@ def _resolve_star_path(value: Optional[str], session_dir: Path) -> Optional[Path
     p = Path(s)
     if p.is_absolute():
         return p
-    name = session_dir.name
-    if name and s.startswith(name + "/"):
-        s = s[len(name) + 1:]
-    return (session_dir / s).resolve()
+    candidates: List[Path] = [
+        (session_dir.parent / s).resolve(),
+        (session_dir / s).resolve(),
+    ]
+    for c in candidates:
+        try:
+            if c.exists():
+                return c
+        except OSError:
+            continue
+    # No candidate exists on disk — return the canonical (parent-based)
+    # one so the caller can emit a sensible "file not found".
+    return candidates[0]
 
 
 def _ensure_eulerhist(

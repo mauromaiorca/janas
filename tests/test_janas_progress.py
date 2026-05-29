@@ -809,6 +809,88 @@ def test_eulerhist_skipped_when_png_newer_than_star() -> None:
         assert run_mock.call_count == 0
 
 
+def test_resolve_star_path_uses_session_parent_for_relative_paths() -> None:
+    """Regression: the run script's cwd is session_dir.parent, so a
+    relative star path (typical of session_settings.toml.particles) must
+    be resolved against session_dir.parent, not session_dir."""
+    with tempfile.TemporaryDirectory() as tmp:
+        parent = Path(tmp)
+        sd = parent / "janas_selection_example"
+        sd.mkdir()
+        # The actual input star sits next to the session, in the parent.
+        star = parent / "reference_subset.star"
+        star.write_text("# fake\n", encoding="utf-8")
+
+        # session_settings.toml-style relative path: no session-dir prefix
+        out = P._resolve_star_path("reference_subset.star", sd)
+        assert out is not None
+        assert out.exists()
+        assert out.resolve() == star.resolve()
+
+
+def test_resolve_star_path_overview_style_with_session_prefix() -> None:
+    """overview.txt records paths like 'janas_selection_example/foo.star'
+    — must still resolve correctly via session_dir.parent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        parent = Path(tmp)
+        sd = parent / "janas_selection_example"
+        (sd / "_janas_SCI").mkdir(parents=True)
+        star = sd / "_janas_SCI" / "best.star"
+        star.write_text("# fake\n", encoding="utf-8")
+
+        out = P._resolve_star_path(
+            "janas_selection_example/_janas_SCI/best.star", sd
+        )
+        assert out is not None
+        assert out.exists()
+        assert out.resolve() == star.resolve()
+
+
+def test_eulerhist_input_star_resolved_from_session_settings() -> None:
+    """End-to-end: with no overview.txt yet (early in the run), the input
+    star comes from session_settings.toml.particles and must be resolved
+    against the session parent so 'janas eulerHist' actually finds it."""
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as tmp:
+        parent = Path(tmp)
+        sd = parent / "janas_selection_example"
+        sd.mkdir()
+        # Input star next to the session, as in the real workflow
+        input_star = parent / "reference_subset.star"
+        input_star.write_text("# fake\n", encoding="utf-8")
+
+        (sd / "session_settings.toml").write_text(
+            'particles = "reference_subset.star"\n',
+            encoding="utf-8",
+        )
+        # No overview.txt yet — runtime/ may not even exist
+        (sd / "runtime").mkdir()
+
+        def _fake_run(cmd, **kwargs):
+            try:
+                out_idx = cmd.index("--outImage") + 1
+                Path(cmd[out_idx]).write_text("png\n", encoding="utf-8")
+            except (ValueError, IndexError, OSError):
+                pass
+            class _R: returncode = 0
+            return _R()
+
+        with patch("subprocess.run", side_effect=_fake_run) as run_mock:
+            text = P.write_progress_html(sd).read_text(encoding="utf-8")
+
+        called_cmds = [call.args[0] for call in run_mock.call_args_list]
+        # janas eulerHist must have been called with the ABSOLUTE path
+        # to the star in the session parent, not session_dir.
+        assert any(
+            "eulerHist" in c and str(input_star.resolve()) in c
+            for c in called_cmds
+        ), called_cmds
+        # And the page renders the input PNG
+        assert "eulerhist_input.png" in text
+        assert "Not available yet" not in text or "Current selection" in text
+
+
 def test_eulerhist_returns_none_when_star_missing() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
@@ -937,6 +1019,12 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_eulerhist_skipped_when_png_newer_than_star),
     ("eulerhist: returns None when star file missing",
         test_eulerhist_returns_none_when_star_missing),
+    ("resolve_star_path: relative path uses session parent (regression)",
+        test_resolve_star_path_uses_session_parent_for_relative_paths),
+    ("resolve_star_path: overview-style prefix still resolves",
+        test_resolve_star_path_overview_style_with_session_prefix),
+    ("eulerhist: input star from session_settings.particles, no overview",
+        test_eulerhist_input_star_resolved_from_session_settings),
     ("elapsed time: 'days, hours, mins, secs' decomposition + edge cases",
         test_format_elapsed_time_decomposition),
     ("atomic write leaves no .tmp file", test_atomic_write),
