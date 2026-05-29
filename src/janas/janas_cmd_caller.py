@@ -751,6 +751,12 @@ janas_selectBestRanked.add_argument(
 janas_selectBestRanked.add_argument(
     "--o", required=False, default=None, type=str, help="output file"
 )
+janas_selectBestRanked.add_argument(
+    "--exact",
+    required=False,
+    action="store_true",
+    help="Fail with a non-zero exit code if the input STAR file contains fewer particles than --num.",
+)
 
 
 def selectBestRanked(args):
@@ -768,7 +774,13 @@ def selectBestRanked(args):
         print("target tag [", args.tag, "] not in ", inputFile)
         exit(0)
     print("target tag=", args.tag)
-    starHandler.extractBest(inputFile, outputFile, int(args.num), args.tag)
+    try:
+        starHandler.extractBest(
+            inputFile, outputFile, int(args.num), args.tag, exact=bool(getattr(args, "exact", False))
+        )
+    except ValueError as exc:
+        print("ERROR:", exc)
+        sys.exit(2)
 
 
 janas_removeDuplicates = command.add_parser(

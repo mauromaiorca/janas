@@ -27,6 +27,7 @@ It uses the per-particle Structural Cross-correlation Index (SCI) to rank partic
 | Workflow | Purpose |
 |----------|---------|
 | [Iterative particle selection](docs/ITERATIVE_SELECTION.md)  | Score, rank and select particle subsets that maximise local resolution. |
+| [Custom selected stacks](docs/custom_selected_stacks.md)  | Extract an ad-hoc top-`N` best-ranked subset from a converged selection, e.g. as input for JANAS-based repicking. |
 |  [3D class reassignment](docs/CLASS_REASSIGNMENT.md)  | Assign particles to pre-computed classes using per-map SCI scores. |
 
 

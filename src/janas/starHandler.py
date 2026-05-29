@@ -849,7 +849,7 @@ def extractWorst(filenameIn: PathLike, filenameOut: PathLike, numItems, tagToSel
 
 
 # extract best/worst
-def extractBest(filenameIn: PathLike, filenameOut: PathLike, numItems, tagToSelect):
+def extractBest(filenameIn: PathLike, filenameOut: PathLike, numItems, tagToSelect, exact: bool = False):
     # print ("selectBest ",numItems)
     header_list = header_columns(filenameIn)
     startRawInfo = infoStarFile(filenameIn)[0]
@@ -860,6 +860,13 @@ def extractBest(filenameIn: PathLike, filenameOut: PathLike, numItems, tagToSele
         skipinitialspace=True,
         sep="\s+",
     )
+    available = len(df)
+    if exact and int(numItems) > available:
+        raise ValueError(
+            "selectBestRanked --exact: requested {} particles but only {} are available in {}".format(
+                int(numItems), available, filenameIn
+            )
+        )
     df = df.sort_values([tagToSelect], ascending=True, kind="quicksort").head(numItems)
     df = df.sort_index()
     writeDataframeToStar(filenameIn, filenameOut, df)
