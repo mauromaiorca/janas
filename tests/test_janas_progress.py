@@ -958,6 +958,10 @@ def test_card_skips_current_selection_image_at_iteration_zero() -> None:
         assert "eulerhist_target.png" not in text
         # Top slot is normal
         assert "eulerhist_input.png" in text
+        # At iteration 0 the subhead is the prefix-only "Current selection"
+        # (no '% of full dataset' suffix yet).
+        assert ">Current selection<" in text
+        assert "of full dataset" not in text.split("Current selection")[1].split("</div>")[0]
 
 
 def test_particle_counts_show_percentage_of_full_dataset() -> None:
@@ -979,7 +983,17 @@ def test_particle_counts_show_percentage_of_full_dataset() -> None:
         (sd / "runtime").mkdir()
         text = P.write_progress_html(sd).read_text(encoding="utf-8")
         # 5000 / 20000 = 25.0%
+        # Particle-counts line carries the percentage:
         assert "(25.0% of full dataset)" in text
+        # ...and so does the bottom-slot subhead in the eulerhist card
+        # ('Current selection — (25.0% of full dataset)').
+        assert (
+            "Current selection — (25.0% of full dataset)" in text
+            or "Current selection &#x2014; (25.0% of full dataset)" in text
+        )
+        # The old generic 'Euler angle distribution' subhead is gone
+        # from the bottom slot (still present on the top slot).
+        assert "Current selection — Euler angle distribution" not in text
 
 
 def test_particle_counts_no_percentage_when_full_dataset_zero() -> None:

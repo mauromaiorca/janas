@@ -877,9 +877,26 @@ def _render_eulerhist_card(
         "Not available yet.",
     ))
     if target_star is not None:
+        # Build a label that carries the selected/full ratio when both
+        # counts are known, e.g.
+        #   "Current selection — (85.6% of full dataset)"
+        # Falls back to a clean prefix-only label when either count is
+        # missing.
+        target_label = "Current selection"
+        full_np = overview_data.get("full_dataset_np")
+        target_np = overview_data.get("target_np")
+        try:
+            if (full_np is not None and target_np is not None
+                    and int(full_np) > 0):
+                pct = 100.0 * int(target_np) / int(full_np)
+                target_label = (
+                    f"Current selection — ({pct:.1f}% of full dataset)"
+                )
+        except (TypeError, ValueError):
+            pass
         parts.append(_img_block(
             "runtime/imgs/eulerhist_target.png",
-            "Current selection — Euler angle distribution",
+            target_label,
             target_png.exists(),
             "Not available yet.",
         ))
@@ -890,7 +907,7 @@ def _render_eulerhist_card(
         # misleading duplicate of the input histogram.
         parts.append(
             '<div class="eulerhist-slot">'
-            '<div class="card-subhead">Current selection — Euler angle distribution</div>'
+            '<div class="card-subhead">Current selection</div>'
             '<p class="meta">Waiting for the first selection iteration to complete.</p>'
             '</div>'
         )
