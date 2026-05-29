@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.0
+
+- **Headless-safe plotting in `janas_optimizer`.** `predict_min_particles` and
+  `plot_standard_whiskers_with_side_table` now build the figure via
+  `matplotlib.figure.Figure` when no interactive display is requested
+  (`--plot` not set, or `show=False` with an output file). `Figure()` is a
+  pure in-memory object and never initialises a GUI backend, so the steps
+  that save PNG/PDF complete cleanly on headless nodes and on SSH sessions
+  with broken X11 forwarding (`_tkinter.TclError: couldn't connect to
+  display ...`). Interactive paths (`--plot`) still go through
+  `pyplot.subplots()` / `pyplot.figure()` so `plt.show()` can manage the
+  window through the configured backend.
+- Replace the runtime backend-swap fallback added in 1.0.x
+  (`_safe_make_figure`) with `_make_figure_and_axes`, a small helper that
+  routes batch callers to `Figure()` and interactive callers to
+  `pyplot.subplots()`.
+- Switch `plt.savefig` to `fig.savefig` in `predict_min_particles` so the
+  PNG output works on a bare Figure.
+- The headless guard in `janas/__init__.py` (`MPLBACKEND=Agg` when neither
+  `MPLBACKEND` nor `DISPLAY` is set) is retained as defence-in-depth for
+  other modules that still call `pyplot` directly.
+
 ## 1.0.8
 
 - Add `utils.backmap_stars()` — the inverse companion of `create_stack_from_star`. Restores the original source `_rlnImageName` in a downstream STAR file by joining against the stack-generation STAR (which carries `_janas_source_rlnImageName`), preserving all refined metadata. Optionally writes `_janas_stack_rlnImageName` as an audit column so the rewrite is reversible.

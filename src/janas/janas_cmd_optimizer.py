@@ -27,7 +27,6 @@ import argparse
 import csv
 import os.path
 import shutil
-import sys
 import time
 import re
 
@@ -41,33 +40,32 @@ from scipy.interpolate import UnivariateSpline
 import toml
 
 
-def _safe_make_figure(*args, **kwargs):
+def _make_figure_and_axes(showPlot: bool, **fig_kwargs):
     """
-    ``plt.subplots()`` with a graceful fallback to the non-interactive ``Agg``
-    backend when the current backend cannot be initialised — most commonly
-    happens on remote SSH sessions with broken X11 forwarding
-    (``_tkinter.TclError: couldn't connect to display ...``). In that case
-    we switch matplotlib to ``Agg`` once and retry; subsequent plots in the
-    same process inherit the Agg backend.
+    Return ``(fig, ax)`` without touching the matplotlib GUI backend when
+    the caller does not intend to display the figure interactively.
+
+    The batch path (``showPlot=False``) returns a bare
+    :class:`matplotlib.figure.Figure`, which is purely in-memory and never
+    triggers backend initialisation — so a broken/absent display server
+    (``_tkinter.TclError: couldn't connect to display ...``) cannot crash
+    a save-to-PNG-only step.
+
+    The interactive path (``showPlot=True``) goes through
+    :func:`matplotlib.pyplot.subplots`, which produces a *managed* figure
+    that :func:`matplotlib.pyplot.show` can later display via the
+    configured interactive backend (any backend error there is honestly
+    raised, since the user explicitly asked for a window).
+
+    Both paths produce an object with the same ``ax`` interface, so the
+    plotting code that follows is identical.
     """
-    global plt
-    try:
-        return plt.subplots(*args, **kwargs)
-    except Exception as exc:  # noqa: BLE001
-        import matplotlib  # noqa: WPS433
-        if matplotlib.get_backend().lower() == "agg":
-            raise
-        sys.stderr.write(
-            f"[janas_optimizer] interactive matplotlib backend "
-            f"'{matplotlib.get_backend()}' failed ({exc.__class__.__name__}: "
-            f"{exc}); falling back to non-interactive 'Agg' backend.\n"
-        )
-        matplotlib.use("Agg", force=True)
-        import importlib  # noqa: WPS433
-        import matplotlib.pyplot as _plt  # noqa: WPS433
-        importlib.reload(_plt)
-        plt = _plt  # rebind module-level alias
-        return plt.subplots(*args, **kwargs)
+    if showPlot:
+        return plt.subplots(**fig_kwargs)
+    from matplotlib.figure import Figure  # noqa: WPS433 — deliberate lazy import
+    fig = Figure(**fig_kwargs)
+    ax = fig.subplots()
+    return fig, ax
 
 # Local
 import janas.janas_core as janas_core
@@ -130,7 +128,7 @@ def predict_min_particles(
 ):
     sns.set_style("whitegrid")
     if ax is None:
-        fig, ax = _safe_make_figure()
+        fig, ax = _make_figure_and_axes(showPlot=showPlot)
     else:
         fig = ax.get_figure()
 
@@ -331,11 +329,15 @@ def predict_min_particles(
         directory = os.path.dirname(outputImageFile)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
-        plt.savefig(outputImageFile, dpi=300, format="png", bbox_inches="tight")
+        # Use fig.savefig (not plt.savefig) so the batch path works on a
+        # bare Figure that never registered with pyplot.
+        fig.savefig(outputImageFile, dpi=300, format="png", bbox_inches="tight")
 
     if showPlot:
         plt.show()
-    plt.close()
+        plt.close(fig)
+    # When not showing, the bare Figure is discarded on function exit; no
+    # explicit plt.close() is needed because the figure was never managed.
 
     if outputSplineFile:
         spline_data = pd.DataFrame({"numParticles": x_smooth, "estimatedResolution": y_smooth})
@@ -805,8 +807,17 @@ def plot_standard_whiskers_with_side_table(overview_path, out_image_path="", sho
         return
 
     # --- Figure ---
+    # Build the figure without touching the matplotlib GUI backend when the
+    # caller will not display it (typical: --o set, --plot not set).
+    # When showing is requested, go through pyplot so plt.show() can find
+    # the managed figure.
     import matplotlib.gridspec as gridspec
-    fig = plt.figure(figsize=(16, 6), constrained_layout=True)
+    _do_show = bool(show) or not bool(out_image_path)
+    if _do_show:
+        fig = plt.figure(figsize=(16, 6), constrained_layout=True)
+    else:
+        from matplotlib.figure import Figure  # noqa: WPS433
+        fig = Figure(figsize=(16, 6), constrained_layout=True)
     gs = gridspec.GridSpec(1, 2, width_ratios=[2.2, 1], figure=fig)
 
     # Left panel: box/whisker
@@ -883,10 +894,10 @@ def plot_standard_whiskers_with_side_table(overview_path, out_image_path="", sho
         print(f"Saved: {png_path}")
         print(f"Saved: {pdf_path}")
 
-    if show or not out_image_path:
+    if _do_show:
         plt.show()
-    else:
         plt.close(fig)
+    # else: the figure is a bare Figure() and goes out of scope cleanly
 
 
 
