@@ -262,11 +262,18 @@ def _pick_stage(
             current_iter = str(last_step_start.get("iteration") or "")
             step_started = str(last_step_start.get("t_start") or "")
             # If the most recent event is a step_end for this same step,
-            # consider that step finished and label accordingly.
+            # consider that step finished and label accordingly. Keep the
+            # image of the just-completed phase: until the next step_start
+            # arrives, the most informative picture is the one of the
+            # last activity (otherwise the dashboard would briefly revert
+            # to the unstarted picture between every step).
             if etype == "step_end" and last.get("step") == current_step:
                 rc = str(last.get("rc") or "0")
                 state = "running"
                 label = f"Step done (rc={rc}), awaiting next"
+                phase = _step_to_phase(current_step)
+                if phase:
+                    image = image_for_phase(phase)
             else:
                 phase = _step_to_phase(current_step)
                 label = _phase_label(phase, current_step)

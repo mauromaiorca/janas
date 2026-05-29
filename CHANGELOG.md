@@ -12,7 +12,17 @@
     flushed yet from the caller's point of view), and
   - `events.ndjson` contains only `session_start` and no `step_start`
     has been emitted yet.
-- Two new tests covering both early-startup transitions.
+- **Patch (no version bump):** also keep the just-completed phase
+  image between steps. The `run_step` shell helper regenerates
+  `progress.html` right after `step_end` is written, so the most
+  common state when the HTML is built is "last event is `step_end`".
+  Previously the `step_end` branch in `_pick_stage` updated the
+  label to "Step done (rc=…), awaiting next" but left the image
+  untouched, so it silently reverted to the unstarted picture
+  between every step. Now the image stays on the phase of the
+  just-completed step until the next `step_start` arrives.
+- Three new tests covering the early-startup transitions and the
+  between-steps regression.
 
 ## 2.1.0
 

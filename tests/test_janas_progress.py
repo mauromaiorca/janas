@@ -138,6 +138,42 @@ def test_pick_stage_running_maps_step_to_image() -> None:
     assert stage["current_iter"] == "1"
 
 
+def test_pick_stage_between_steps_keeps_last_phase_image() -> None:
+    # The dashboard is regenerated AFTER step_end is written to
+    # events.ndjson (see _runtime_logging_shell_block.run_step), so the
+    # most common state when the HTML is built is "last event is step_end".
+    # The image must reflect the phase of the just-completed step, not
+    # silently fall back to the unstarted picture.
+    events_step_end_03 = [
+        {"event": "session_start", "iteration": "0", "status": "started"},
+        {"event": "step_start", "iteration": "2",
+         "step": "03_score_particles", "status": "running",
+         "t_start": "2026-05-28T02:00:00Z"},
+        {"event": "step_end", "iteration": "2",
+         "step": "03_score_particles", "status": "success", "rc": "0",
+         "elapsed_s": "120", "t_start": "2026-05-28T02:00:00Z",
+         "t_end": "2026-05-28T02:02:00Z"},
+    ]
+    stage = P._pick_stage(events_step_end_03, status={}, session_kind="selection")
+    assert stage["state"] == "running"
+    assert stage["image"] == "selection_step2.png", stage
+    assert "Step done" in stage["label"]
+
+    # Same check for a step in phase 4 (locres family)
+    events_step_end_07 = [
+        {"event": "session_start", "iteration": "0", "status": "started"},
+        {"event": "step_start", "iteration": "3",
+         "step": "07_locres_stats", "status": "running",
+         "t_start": "2026-05-28T02:10:00Z"},
+        {"event": "step_end", "iteration": "3",
+         "step": "07_locres_stats", "status": "success", "rc": "0",
+         "elapsed_s": "12", "t_start": "2026-05-28T02:10:00Z",
+         "t_end": "2026-05-28T02:10:12Z"},
+    ]
+    stage = P._pick_stage(events_step_end_07, status={}, session_kind="selection")
+    assert stage["image"] == "selection_step4.png", stage
+
+
 def test_pick_stage_finished() -> None:
     events = [
         {"event": "session_end", "status": "finished",
@@ -302,6 +338,8 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
     ("pick stage: status only (no events) -> step1 (preprocessing)",
         test_pick_stage_status_only_no_events_uses_step1_image),
     ("pick stage: running maps step to image", test_pick_stage_running_maps_step_to_image),
+    ("pick stage: between steps keeps last phase image",
+        test_pick_stage_between_steps_keeps_last_phase_image),
     ("pick stage: finished", test_pick_stage_finished),
     ("pick stage: aborted uses finished image with aborted badge",
         test_pick_stage_aborted_uses_finished_image_with_aborted_state),
