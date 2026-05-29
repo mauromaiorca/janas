@@ -206,7 +206,12 @@ def _read_overview_data(path: Path) -> Dict[str, Any]:
         if isinstance(row, dict):
             selections[idx] = row
 
-    iter_indices = sorted(i for i in selections if i > 0)
+    # Iteration 0 is the reference (the full input dataset) — keep it in
+    # the visible list so the very first frame of a running session
+    # already shows something. The "target" highlight then moves from 0
+    # to the chosen iteration once the optimiser starts improving the
+    # subset.
+    iter_indices = sorted(selections.keys())
 
     target_block = data.get("_janas_target_selection")
     target: Optional[Dict[str, Any]] = None
@@ -248,16 +253,23 @@ def _read_overview_data(path: Path) -> Dict[str, Any]:
     if target_star is None and target_iter is not None:
         target_star = _get_starfile(selections.get(target_iter))
 
+    # The full input dataset (always present once janas starts) lives in
+    # the _janas_selection_0 block. Its reference_starFile is the input
+    # to the optimiser, which the dashboard uses for the "input" euler
+    # histogram.
+    input_star = _get_starfile(selections.get(0))
+
     return {
         "iterations": iter_indices,
         "target_iter": target_iter,
         "full_dataset_np": full_dataset_np,
         "target_np": target_np,
         "target_starfile": target_star,
+        "input_starfile": input_star,
         # Full contents of the [[_janas_target_selection]] block (or {} if
-        # missing). The right-hand "Session info" card renders this as a
-        # scrollable key/value table so the user can inspect everything
-        # the optimiser is currently treating as the best selection.
+        # missing). Kept on the return shape so external tooling can still
+        # consume it; the dashboard no longer renders it as a table since
+        # 2.1.6.
         "target_block": target if isinstance(target, dict) else {},
     }
 
@@ -561,17 +573,26 @@ def _format_recent_events(events: List[Dict[str, Any]], limit: int) -> str:
 
 
 def _render_iterations_bar(overview_data: Dict[str, Any]) -> str:
-    """Render the 'Iterations: 1 2 3' line under the stage image.
+    """Render the 'Iterations: 0 1 2 3' line under the stage image.
 
-    Each iteration number is a <span class="iter-num">. The iteration
-    indicated by ``selection_number`` in ``[[_janas_target_selection]]``
-    additionally receives the ``current`` class, which the embedded CSS
-    paints in green.
+    Iteration 0 (the reference / full input) is always included, so the
+    bar already shows ``Iterations: 0`` at the very first iteration of
+    a fresh session. Each iteration number is wrapped in a
+    ``<span class="iter-num">``; the iteration indicated by
+    ``selection_number`` in ``[[_janas_target_selection]]`` is painted
+    green via the additional ``current`` class. When no target has been
+    chosen yet, iteration 0 is treated as the current reference and
+    receives the highlight.
     """
     iterations = overview_data.get("iterations") or []
     if not iterations:
         return ""
     target_iter = overview_data.get("target_iter")
+    if target_iter is None:
+        # No target yet → iteration 0 (the reference) is, by definition,
+        # the current "best" selection. Highlight it so the bar never
+        # renders without a green chip.
+        target_iter = 0
     spans = []
     for i in iterations:
         cls = "iter-num current" if i == target_iter else "iter-num"
@@ -670,6 +691,158 @@ def _render_particle_counts(
     return out
 
 
+def _resolve_star_path(value: Optional[str], session_dir: Path) -> Optional[Path]:
+    """
+    Convert a star path as found in ``overview.txt`` (or in
+    ``session_settings.toml``) into an absolute filesystem path.
+
+    ``overview.txt`` records paths from one level above the session
+    directory, so they usually start with the session-dir name and
+    must have that prefix stripped before being resolved against the
+    session directory itself. Absolute paths are returned unchanged.
+    Returns None for empty/missing inputs.
+    """
+    if not value:
+        return None
+    s = str(value).replace("\\", "/").strip()
+    if not s:
+        return None
+    p = Path(s)
+    if p.is_absolute():
+        return p
+    name = session_dir.name
+    if name and s.startswith(name + "/"):
+        s = s[len(name) + 1:]
+    return (session_dir / s).resolve()
+
+
+def _ensure_eulerhist(
+    star_path: Optional[Path],
+    png_path: Path,
+    timeout: int = 60,
+) -> Optional[Path]:
+    """Generate ``png_path`` via ``janas eulerHist`` if missing or stale.
+
+    Idempotent: when the PNG already exists and its mtime is at least as
+    new as the star file's, nothing is done. Returns the PNG path on
+    success, None on any failure. Best-effort everywhere — a failing
+    subprocess (no ``janas`` on PATH, malformed star, timeout, …) is
+    swallowed silently so the dashboard generator never aborts because
+    a histogram could not be built.
+    """
+    if star_path is None:
+        return None
+    try:
+        if not star_path.exists():
+            return None
+    except OSError:
+        return None
+    try:
+        if (png_path.exists()
+                and png_path.stat().st_mtime >= star_path.stat().st_mtime):
+            return png_path
+    except OSError:
+        pass
+    try:
+        png_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    import subprocess  # noqa: WPS433
+    try:
+        subprocess.run(
+            ["janas", "eulerHist",
+             "--i", str(star_path),
+             "--outImage", str(png_path),
+             "--show", "False"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    return png_path if png_path.exists() else None
+
+
+def _read_input_star_from_settings(session_dir: Path) -> Optional[str]:
+    """Fall-back input-star lookup when ``overview.txt`` is not yet
+    populated: read the ``particles`` key from ``session_settings.toml``."""
+    p = session_dir / "session_settings.toml"
+    if not p.exists():
+        return None
+    try:
+        import toml as _toml  # noqa: WPS433
+    except ImportError:
+        return None
+    try:
+        data = _toml.load(str(p))
+    except Exception:  # noqa: BLE001
+        return None
+    v = data.get("particles")
+    return str(v) if v else None
+
+
+def _render_eulerhist_card(
+    session_dir: Path,
+    overview_data: Dict[str, Any],
+) -> str:
+    """
+    Trigger generation of the two euler-histogram PNGs and return the
+    HTML for the right card that stacks them. The card shows:
+
+      - **Top** — histogram of the input star (full input dataset).
+      - **Bottom** — histogram of the current target selection star.
+        When no target has been chosen yet, falls back to the input
+        star so the slot is never blank.
+
+    Stale PNGs are regenerated lazily; up-to-date ones are reused.
+    """
+    imgs_dir = session_dir / "runtime" / "imgs"
+    input_star_value = (
+        overview_data.get("input_starfile")
+        or _read_input_star_from_settings(session_dir)
+    )
+    target_star_value = overview_data.get("target_starfile") or input_star_value
+
+    input_star = _resolve_star_path(input_star_value, session_dir)
+    target_star = _resolve_star_path(target_star_value, session_dir)
+
+    input_png = imgs_dir / "eulerhist_input.png"
+    target_png = imgs_dir / "eulerhist_target.png"
+
+    _ensure_eulerhist(input_star, input_png)
+    _ensure_eulerhist(target_star, target_png)
+
+    def _img_block(rel_src: str, label: str, present: bool) -> str:
+        if not present:
+            return (
+                f'<div class="eulerhist-slot">'
+                f'<div class="card-subhead">{_esc(label)}</div>'
+                f'<p class="meta">Not available yet.</p>'
+                f"</div>"
+            )
+        return (
+            f'<div class="eulerhist-slot">'
+            f'<div class="card-subhead">{_esc(label)}</div>'
+            f'<img class="eulerhist-img" src="{_esc(rel_src)}" '
+            f'alt="{_esc(label)}">'
+            f"</div>"
+        )
+
+    parts: List[str] = []
+    parts.append(_img_block(
+        "runtime/imgs/eulerhist_input.png",
+        "Input star — Euler angle distribution",
+        input_png.exists(),
+    ))
+    parts.append(_img_block(
+        "runtime/imgs/eulerhist_target.png",
+        "Current selection — Euler angle distribution",
+        target_png.exists(),
+    ))
+    return "\n".join(parts)
+
+
 def _render_target_selection_table(target_block: Dict[str, Any]) -> str:
     """Render the contents of ``[[_janas_target_selection]]`` as a small
     key/value table. Long string values (paths) word-break to keep the
@@ -743,8 +916,13 @@ h2 {{ font-size: 15px; margin: 24px 0 8px; text-transform: uppercase;
 @media (max-width: 800px) {{ .grid-2 {{ grid-template-columns: 1fr; }} }}
 .card {{ background: var(--card); border: 1px solid var(--border);
          border-radius: 8px; padding: 16px; }}
-.stage-img {{ max-width: 360px; width: 100%; height: auto; display: block;
+.stage-img {{ max-width: 540px; width: 100%; height: auto; display: block;
               margin: 0 auto 12px; border-radius: 4px; }}
+.eulerhist-slot {{ margin-bottom: 14px; }}
+.eulerhist-slot:last-child {{ margin-bottom: 0; }}
+.eulerhist-img {{ width: 100%; height: auto; display: block;
+                  border: 1px solid var(--border); border-radius: 4px;
+                  background: var(--card); }}
 .card-subhead {{ font-size: 13px; margin: 12px 0 6px; color: var(--muted);
                  text-transform: uppercase; letter-spacing: 0.04em;
                  font-weight: 600; }}
@@ -792,7 +970,10 @@ code {{ font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
 <body>
 
 <h1>JANAS — {session_name} <span class="badge {state}">{state_text}</span></h1>
-<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}</p>
+<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}<br>
+Type: <strong>{session_kind}</strong> ·
+Host: <strong>{host}</strong> ·
+Generated: {generated_at}</p>
 
 <div class="grid grid-2">
   <div class="card">
@@ -808,14 +989,8 @@ code {{ font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
     {particle_counts_html}
   </div>
   <div class="card">
-    <h2>Session info</h2>
-    <p class="meta">
-      Type: <strong>{session_kind}</strong> ·
-      Host: <strong>{host}</strong><br>
-      Generated: {generated_at}
-    </p>
-    <h3 class="card-subhead">Target selection (<code>[[_janas_target_selection]]</code>)</h3>
-    {target_selection_html}
+    <h2>Euler angle distribution</h2>
+    {eulerhist_html}
   </div>
 </div>
 
@@ -865,9 +1040,7 @@ def _render_html(
     hostname = _extract_hostname(events)
     iterations_bar_html = _render_iterations_bar(overview_data)
     particle_counts_html = _render_particle_counts(overview_data, session_dir)
-    target_selection_html = _render_target_selection_table(
-        overview_data.get("target_block") or {}
-    )
+    eulerhist_html = _render_eulerhist_card(session_dir, overview_data)
 
     # Settings link in the header — points to the user-friendly
     # settings.html when it has been generated, otherwise hidden.
@@ -931,7 +1104,7 @@ def _render_html(
         iterations_bar_html=iterations_bar_html,
         particle_counts_html=particle_counts_html,
         settings_link_html=settings_link_html,
-        target_selection_html=target_selection_html,
+        eulerhist_html=eulerhist_html,
         stage_label=_esc(stage["label"]),
         current_iter=_esc(stage["current_iter"] or "--"),
         current_step=_esc(stage["current_step"] or "--"),

@@ -388,9 +388,9 @@ def test_overview_data_extraction_and_rendering() -> None:
         # Minimal runtime/ so the rest of the renderer is happy
         (sd / "runtime").mkdir(parents=True, exist_ok=True)
 
-        # Parser
+        # Parser — iteration 0 (the reference) is now included in the bar
         data = P._read_overview_data(sd / "overview.txt")
-        assert data["iterations"] == [1, 2, 3], data
+        assert data["iterations"] == [0, 1, 2, 3], data
         assert data["target_iter"] == 2, data
         assert data["full_dataset_np"] == 123456, data
         assert data["target_np"] == 45678, data
@@ -449,14 +449,15 @@ def test_overview_data_no_target_skips_highlight() -> None:
         (sd / "runtime").mkdir(parents=True, exist_ok=True)
 
         data = P._read_overview_data(sd / "overview.txt")
-        assert data["iterations"] == [1]
+        assert data["iterations"] == [0, 1]
         assert data["target_iter"] is None
         assert data["full_dataset_np"] == 100000
         assert data["target_np"] is None
 
         text = P.write_progress_html(sd).read_text(encoding="utf-8")
         assert "Iterations:" in text
-        assert 'class="iter-num current"' not in text
+        # No target → iteration 0 is highlighted as the current reference
+        assert 'class="iter-num current">0<' in text
         assert "Full dataset:" in text
         assert "Selection:" not in text   # no target, no selection count
 
@@ -648,10 +649,9 @@ def test_settings_html_skipped_when_no_toml() -> None:
         assert not (sd / "settings.html").exists()
 
 
-def test_progress_layout_has_two_columns_with_session_info_card() -> None:
-    """Two-column layout is back. Right column carries 'Session info' with
-    Type/Host/Generated and the target-selection block; the old
-    'Runtime' card with SLURM/CUDA is gone."""
+def test_progress_layout_session_info_in_header() -> None:
+    """The Type/Host/Generated trio sits in the header (not in a
+    separate card); the right card now hosts the Euler histograms."""
     with tempfile.TemporaryDirectory() as tmp:
         sd = _make_session(
             Path(tmp),
@@ -661,74 +661,161 @@ def test_progress_layout_has_two_columns_with_session_info_card() -> None:
             ],
         )
         text = P.write_progress_html(sd).read_text(encoding="utf-8")
-        # Two-column grid wrapper is back
         assert 'class="grid grid-2"' in text
-        # New right card heading
-        assert ">Session info<" in text
-        # Host moved to the right card meta line; still in page text
-        assert "PC-587054" in text
-        # Type and Generated are in the right card now, not the header
+        # Type/Host/Generated now in the header
         assert "Type:" in text
-        # Old Runtime card heading is still gone
+        assert "PC-587054" in text
+        assert "Generated:" in text
+        # The old card headings are gone
         assert ">Runtime<" not in text
+        assert ">Session info<" not in text
+        # The new right card is present
+        assert ">Euler angle distribution<" in text
 
 
-def test_target_selection_block_rendered_in_right_card() -> None:
-    """[[_janas_target_selection]] contents are rendered as a key/value
-    table inside a scrollable area in the right card."""
+def test_iterations_bar_shows_zero_highlighted_when_no_target() -> None:
+    """With only _janas_selection_0 present (no real iterations yet), the
+    bar shows just '0' in green."""
     with tempfile.TemporaryDirectory() as tmp:
         sd = Path(tmp) / "janas_selection_demo"
-        sd.mkdir(parents=True)
+        sd.mkdir()
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_selection_0]]\n'
+            'reference_starFile = "demo/input.star"\n'
+            'reference_num_particles = 9951\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir()
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert "Iterations:" in text
+        # Only the 0 chip is rendered, and it is highlighted
+        assert 'class="iter-num current">0<' in text
+        # No further iteration chips should appear
+        for n in (1, 2, 3):
+            assert f'>{n}<' not in text.split("Iterations:", 1)[1].split("</div>", 1)[0]
+
+
+def test_iterations_bar_includes_zero_with_target_at_two() -> None:
+    """0 1 2: iteration 2 is the target so it is the green one; 0 and 1
+    stay neutral."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir()
         (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
         (sd / "overview.txt").write_text(
             '[[_janas_target_selection]]\n'
-            'reference_starFile = "demo/_janas_SCI__1.00_scored_selection_2/'
-            'norm_best_8498.star"\n'
+            'reference_starFile = "demo/iter2.star"\n'
             'reference_num_particles = 8498\n'
-            'reference_locres_ResolutionTarget = 3.42\n'
-            'last_consecutive_non_improving_selections = 1\n'
-            'percentage_particles_retained = 85.4\n'
             'selection_number = 2\n'
             '\n'
+            '[[_janas_selection_0]]\nreference_num_particles = 9951\n\n'
+            '[[_janas_selection_1]]\nreference_num_particles = 9000\n\n'
+            '[[_janas_selection_2]]\nreference_num_particles = 8498\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir()
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        # 2 is the highlighted iteration; 0 and 1 are neutral
+        assert 'class="iter-num">0<' in text
+        assert 'class="iter-num">1<' in text
+        assert 'class="iter-num current">2<' in text
+
+
+def test_eulerhist_subprocess_is_invoked_for_input_and_target() -> None:
+    """Calling write_progress_html should attempt to generate both euler
+    histograms by spawning 'janas eulerHist --show False'. We patch
+    subprocess.run to capture the calls."""
+    import subprocess as _sp
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir()
+        # An input star and a (different) target star, both present on disk
+        input_star = sd / "input.star"
+        input_star.write_text("# fake\n", encoding="utf-8")
+        target_dir = sd / "_janas_SCI"
+        target_dir.mkdir()
+        target_star = target_dir / "best.star"
+        target_star.write_text("# fake\n", encoding="utf-8")
+
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_target_selection]]\n'
+            f'reference_starFile = "janas_selection_demo/_janas_SCI/best.star"\n'
+            'reference_num_particles = 8498\n'
+            'selection_number = 1\n'
+            '\n'
             '[[_janas_selection_0]]\n'
+            'reference_starFile = "janas_selection_demo/input.star"\n'
             'reference_num_particles = 9951\n'
             '\n'
-            '[[_janas_selection_2]]\n'
+            '[[_janas_selection_1]]\n'
+            'reference_starFile = "janas_selection_demo/_janas_SCI/best.star"\n'
             'reference_num_particles = 8498\n',
             encoding="utf-8",
         )
         (sd / "runtime").mkdir()
 
-        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        # Patch subprocess.run AND make sure the resulting PNG exists so
+        # the renderer believes the histogram was produced.
+        def _fake_run(cmd, **kwargs):
+            # The command structure is: ["janas", "eulerHist", "--i", ...,
+            # "--outImage", out_png, "--show", "False"]
+            try:
+                out_idx = cmd.index("--outImage") + 1
+                Path(cmd[out_idx]).write_text("fake png\n", encoding="utf-8")
+            except (ValueError, IndexError, OSError):
+                pass
+            class _R: returncode = 0
+            return _R()
 
-        # The right-card subhead is there
-        assert "Target selection" in text
-        assert "[[_janas_target_selection]]" in text
-        # Scrollable container wraps the block
-        assert 'class="scroll-area"' in text
-        # Every key surfaces in the rendered table
-        for key in (
-            "reference_starFile",
-            "reference_num_particles",
-            "reference_locres_ResolutionTarget",
-            "last_consecutive_non_improving_selections",
-            "percentage_particles_retained",
-            "selection_number",
-        ):
-            assert key in text, f"missing key: {key}"
-        # Float and int values surface verbatim
-        assert "8498" in text
-        assert "3.42" in text
+        with patch("subprocess.run", side_effect=_fake_run) as run_mock:
+            text = P.write_progress_html(sd).read_text(encoding="utf-8")
+
+        # Two invocations: one for the input star, one for the target star.
+        # Path.resolve() may rewrite /tmp -> /private/tmp on macOS, so we
+        # compare on the resolved form on both sides.
+        called_cmds = [call.args[0] for call in run_mock.call_args_list]
+        input_resolved = str(input_star.resolve())
+        target_resolved = str(target_star.resolve())
+        assert any("eulerHist" in c and input_resolved in c
+                   for c in called_cmds), called_cmds
+        assert any("eulerHist" in c and target_resolved in c
+                   for c in called_cmds), called_cmds
+        # Both PNGs are referenced in the page
+        assert "eulerhist_input.png" in text
+        assert "eulerhist_target.png" in text
 
 
-def test_target_selection_block_missing_shows_placeholder() -> None:
+def test_eulerhist_skipped_when_png_newer_than_star() -> None:
+    """Idempotency: if the PNG exists and its mtime is at least as new as
+    the star, _ensure_eulerhist does not spawn the subprocess again."""
+    from unittest.mock import patch
     with tempfile.TemporaryDirectory() as tmp:
-        sd = _make_session(Path(tmp))
-        text = P.write_progress_html(sd).read_text(encoding="utf-8")
-        # Heading is still there (it is a static piece of the right card)
-        assert "Target selection" in text
-        # Placeholder for the missing block
-        assert "No <code>[[_janas_target_selection]]</code> block yet." in text
+        d = Path(tmp)
+        star = d / "x.star"
+        star.write_text("hi", encoding="utf-8")
+        png = d / "out.png"
+        png.write_text("existing", encoding="utf-8")
+        # Force png mtime ahead of the star
+        import os as _os, time as _time
+        _time.sleep(0.02)
+        _os.utime(png, None)
+        with patch("subprocess.run") as run_mock:
+            out = P._ensure_eulerhist(star, png)
+        assert out == png
+        assert run_mock.call_count == 0
+
+
+def test_eulerhist_returns_none_when_star_missing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        png = d / "out.png"
+        out = P._ensure_eulerhist(d / "no_such.star", png)
+        assert out is None
+        assert not png.exists()
 
 
 def test_format_elapsed_time_decomposition() -> None:
@@ -838,12 +925,18 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_settings_html_renders_booleans_with_classes),
     ("settings.html: skipped when no session_settings.toml",
         test_settings_html_skipped_when_no_toml),
-    ("progress layout: two-column grid with Session info card",
-        test_progress_layout_has_two_columns_with_session_info_card),
-    ("right card: [[_janas_target_selection]] rendered in scroll area",
-        test_target_selection_block_rendered_in_right_card),
-    ("right card: missing target block shows placeholder",
-        test_target_selection_block_missing_shows_placeholder),
+    ("progress layout: Type/Host/Generated moved to header",
+        test_progress_layout_session_info_in_header),
+    ("iterations bar: '0' alone, highlighted, when no target yet",
+        test_iterations_bar_shows_zero_highlighted_when_no_target),
+    ("iterations bar: '0 1 2' with target=2 highlighted",
+        test_iterations_bar_includes_zero_with_target_at_two),
+    ("eulerhist: subprocess invoked for input + target stars",
+        test_eulerhist_subprocess_is_invoked_for_input_and_target),
+    ("eulerhist: skipped when PNG newer than star (idempotent)",
+        test_eulerhist_skipped_when_png_newer_than_star),
+    ("eulerhist: returns None when star file missing",
+        test_eulerhist_returns_none_when_star_missing),
     ("elapsed time: 'days, hours, mins, secs' decomposition + edge cases",
         test_format_elapsed_time_decomposition),
     ("atomic write leaves no .tmp file", test_atomic_write),
