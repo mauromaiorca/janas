@@ -974,7 +974,7 @@ h2 {{ font-size: 15px; margin: 24px 0 8px; text-transform: uppercase;
               margin: 0 auto 12px; border-radius: 4px; }}
 .eulerhist-slot {{ margin-bottom: 14px; }}
 .eulerhist-slot:last-child {{ margin-bottom: 0; }}
-.eulerhist-img {{ width: 60%; height: auto; display: block;
+.eulerhist-img {{ width: 78%; height: auto; display: block;
                   margin: 0 auto;
                   border: 1px solid var(--border); border-radius: 4px;
                   background: var(--card); }}
