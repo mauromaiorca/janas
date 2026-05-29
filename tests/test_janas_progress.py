@@ -296,6 +296,45 @@ def test_write_progress_html_classification_session_text_only() -> None:
         assert "selection_finished.png" not in text
 
 
+def test_timing_table_uses_pass_fail_and_iteration_banding() -> None:
+    """The Step timings table must:
+      - use 'Return code' as the column header,
+      - render rc=0 as 'PASS (rc=0)' (green) and non-zero as 'FAIL (rc=N)'
+        (red),
+      - band rows by iteration parity using iter-odd / iter-even.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(
+            Path(tmp),
+            timings=[
+                ("1", "01_randomize_halves",
+                 "2026-05-28T01:00:00Z", "2026-05-28T01:00:05Z", "5", "0"),
+                ("1", "03_score_particles",
+                 "2026-05-28T01:00:05Z", "2026-05-28T01:01:00Z", "55", "0"),
+                ("2", "03_score_particles",
+                 "2026-05-28T01:01:00Z", "2026-05-28T01:02:00Z", "60", "1"),
+            ],
+        )
+        out = P.write_progress_html(sd)
+        text = out.read_text(encoding="utf-8")
+
+        # Column header
+        assert "Return code" in text
+        assert ">rc<" not in text  # the old short header is gone
+
+        # PASS / FAIL rendering
+        assert "PASS (rc=0)" in text
+        assert "FAIL (rc=1)" in text
+
+        # Iteration banding classes are emitted on the <tr>
+        assert "iter-odd" in text   # iteration 1 -> odd
+        assert "iter-even" in text  # iteration 2 -> even
+
+        # And the CSS rules backing them are present
+        assert "tr.iter-odd  td" in text or "tr.iter-odd" in text
+        assert "tr.iter-even td" in text or "tr.iter-even" in text
+
+
 def test_atomic_write() -> None:
     """Re-writing must not leave a stray progress.html.tmp."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -350,6 +389,8 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_write_progress_html_creates_file_and_copies_images),
     ("classification session: text-only HTML",
         test_write_progress_html_classification_session_text_only),
+    ("timing table: 'Return code' header, PASS/FAIL cells, iteration banding",
+        test_timing_table_uses_pass_fail_and_iteration_banding),
     ("atomic write leaves no .tmp file", test_atomic_write),
     ("HTML escapes injected step names", test_html_is_escaped),
 ]

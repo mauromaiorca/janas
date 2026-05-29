@@ -21,8 +21,15 @@
   untouched, so it silently reverted to the unstarted picture
   between every step. Now the image stays on the phase of the
   just-completed step until the next `step_start` arrives.
-- Three new tests covering the early-startup transitions and the
-  between-steps regression.
+- **Patch (no version bump):** Step timings table UI polish:
+  - column header renamed from "rc" to "Return code";
+  - each cell rendered as `PASS (rc=0)` (green) or `FAIL (rc=N)`
+    (red) instead of just the raw integer;
+  - alternating row backgrounds keyed off iteration parity
+    (`iter-odd` light-grey, `iter-even` white) so it is easy to
+    visually separate one iteration from the next.
+- Four new tests covering the early-startup transitions, the
+  between-steps regression, and the timing-table UI guarantees.
 
 ## 2.1.0
 

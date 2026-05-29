@@ -360,20 +360,40 @@ def _esc(value: Any) -> str:
 
 
 def _format_timing_rows(rows: List[Dict[str, str]], limit: int = 50) -> str:
-    """Render the last ``limit`` step-timing rows as <tr> entries."""
+    """Render the last ``limit`` step-timing rows as <tr> entries.
+
+    Each row gets:
+      - a parity class (``iter-odd``/``iter-even``) keyed off the iteration
+        number, so adjacent iterations are visually banded in the table;
+      - a rendered return-code cell of ``PASS (rc=0)`` (green) or
+        ``FAIL (rc=N)`` (red), explained in the column header as
+        "Return code".
+
+    Non-numeric or missing iteration values are treated as even so they
+    do not break the banding.
+    """
     if not rows:
         return '<tr><td colspan="5" class="meta">No steps completed yet.</td></tr>'
     selected = rows[-limit:]
     out = []
     for r in selected:
-        rc = r.get("rc", "0")
-        rc_cls = "rc-ok" if str(rc).strip() == "0" else "rc-bad"
+        rc_raw = str(r.get("rc", "0")).strip()
+        rc_ok = (rc_raw == "0")
+        rc_cls = "rc-ok" if rc_ok else "rc-bad"
+        rc_text = f"PASS (rc={rc_raw})" if rc_ok else f"FAIL (rc={rc_raw})"
+
+        iter_raw = str(r.get("iteration", "")).strip()
+        try:
+            row_cls = "iter-odd" if (int(iter_raw) % 2 == 1) else "iter-even"
+        except ValueError:
+            row_cls = "iter-even"
+
         out.append(
-            "<tr>"
+            f"<tr class='{row_cls}'>"
             f"<td>{_esc(r.get('iteration', ''))}</td>"
             f"<td><code>{_esc(r.get('step', ''))}</code></td>"
             f"<td class='num'>{_esc(r.get('elapsed_s', ''))}</td>"
-            f"<td class='num {rc_cls}'>{_esc(rc)}</td>"
+            f"<td class='{rc_cls}'>{_esc(rc_text)}</td>"
             f"<td class='meta'>{_esc(r.get('t_start', ''))}</td>"
             "</tr>"
         )
@@ -460,8 +480,10 @@ table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
 th, td {{ text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }}
 th {{ background: #f9fafb; font-weight: 600; }}
 td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-td.rc-ok {{ color: var(--ok); }}
+td.rc-ok {{ color: var(--ok); font-weight: 600; }}
 td.rc-bad {{ color: var(--err); font-weight: 600; }}
+tr.iter-odd  td {{ background: #f3f4f6; }}
+tr.iter-even td {{ background: var(--card); }}
 pre {{ background: #f3f4f6; padding: 12px; border-radius: 6px;
        overflow: auto; font-size: 12px; line-height: 1.4;
        max-height: 320px; }}
@@ -502,7 +524,7 @@ Type: {session_kind} · Generated: {generated_at}</p>
 <table>
 <thead><tr>
   <th>Iter</th><th>Step</th><th class="num">Elapsed (s)</th>
-  <th class="num">rc</th><th>Started (UTC)</th>
+  <th>Return code</th><th>Started (UTC)</th>
 </tr></thead>
 <tbody>
 {timing_rows}
