@@ -254,6 +254,11 @@ def _read_overview_data(path: Path) -> Dict[str, Any]:
         "full_dataset_np": full_dataset_np,
         "target_np": target_np,
         "target_starfile": target_star,
+        # Full contents of the [[_janas_target_selection]] block (or {} if
+        # missing). The right-hand "Session info" card renders this as a
+        # scrollable key/value table so the user can inspect everything
+        # the optimiser is currently treating as the best selection.
+        "target_block": target if isinstance(target, dict) else {},
     }
 
 
@@ -665,6 +670,30 @@ def _render_particle_counts(
     return out
 
 
+def _render_target_selection_table(target_block: Dict[str, Any]) -> str:
+    """Render the contents of ``[[_janas_target_selection]]`` as a small
+    key/value table. Long string values (paths) word-break to keep the
+    layout from blowing up; the whole table is wrapped in a scrollable
+    container by the calling template so a tall selection record does
+    not push the rest of the right-hand card off-screen.
+    """
+    if not target_block:
+        return '<p class="meta">No <code>[[_janas_target_selection]]</code> block yet.</p>'
+    rows: List[str] = []
+    for key in sorted(target_block.keys()):
+        rows.append(
+            "<tr>"
+            f'<th class="k">{_esc(key)}</th>'
+            f'<td class="v">{_format_settings_value(target_block[key])}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="scroll-area"><table class="kv-table"><tbody>'
+        + "\n".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
 def _extract_hostname(events: List[Dict[str, Any]]) -> str:
     """Pull the hostname from the most recent event that carries it.
 
@@ -714,8 +743,18 @@ h2 {{ font-size: 15px; margin: 24px 0 8px; text-transform: uppercase;
 @media (max-width: 800px) {{ .grid-2 {{ grid-template-columns: 1fr; }} }}
 .card {{ background: var(--card); border: 1px solid var(--border);
          border-radius: 8px; padding: 16px; }}
-.stage-img {{ max-width: 100%; height: auto; display: block;
+.stage-img {{ max-width: 360px; width: 100%; height: auto; display: block;
               margin: 0 auto 12px; border-radius: 4px; }}
+.card-subhead {{ font-size: 13px; margin: 12px 0 6px; color: var(--muted);
+                 text-transform: uppercase; letter-spacing: 0.04em;
+                 font-weight: 600; }}
+.scroll-area {{ max-height: 260px; overflow-y: auto;
+                border: 1px solid var(--border); border-radius: 6px;
+                padding: 0 8px; }}
+.kv-table th.k {{ width: 42%; color: var(--muted); font-weight: 600;
+                  font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
+.kv-table td.v {{ font-family: SFMono-Regular, Menlo, Consolas, monospace;
+                  word-break: break-all; }}
 .stage-label {{ font-weight: 600; font-size: 16px; margin: 8px 0 4px; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
 th, td {{ text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }}
@@ -753,20 +792,31 @@ code {{ font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
 <body>
 
 <h1>JANAS — {session_name} <span class="badge {state}">{state_text}</span></h1>
-<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}<br>
-Type: {session_kind} · Host: {host} · Generated: {generated_at}</p>
+<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}</p>
 
-<div class="card">
-  <h2>Current stage</h2>
-  {stage_image_html}
-  {iterations_bar_html}
-  <div class="stage-label">{stage_label}</div>
-  <div class="meta">
-    Iteration: <strong>{current_iter}</strong> ·
-    Step: <code>{current_step}</code><br>
-    Started: {step_started}{elapsed_str}
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Current stage</h2>
+    {stage_image_html}
+    {iterations_bar_html}
+    <div class="stage-label">{stage_label}</div>
+    <div class="meta">
+      Iteration: <strong>{current_iter}</strong> ·
+      Step: <code>{current_step}</code><br>
+      Started: {step_started}{elapsed_str}
+    </div>
+    {particle_counts_html}
   </div>
-  {particle_counts_html}
+  <div class="card">
+    <h2>Session info</h2>
+    <p class="meta">
+      Type: <strong>{session_kind}</strong> ·
+      Host: <strong>{host}</strong><br>
+      Generated: {generated_at}
+    </p>
+    <h3 class="card-subhead">Target selection (<code>[[_janas_target_selection]]</code>)</h3>
+    {target_selection_html}
+  </div>
 </div>
 
 <h2>Step timings ({n_timings} step{plural_t}, showing last {shown_t})</h2>
@@ -815,6 +865,9 @@ def _render_html(
     hostname = _extract_hostname(events)
     iterations_bar_html = _render_iterations_bar(overview_data)
     particle_counts_html = _render_particle_counts(overview_data, session_dir)
+    target_selection_html = _render_target_selection_table(
+        overview_data.get("target_block") or {}
+    )
 
     # Settings link in the header — points to the user-friendly
     # settings.html when it has been generated, otherwise hidden.
@@ -878,6 +931,7 @@ def _render_html(
         iterations_bar_html=iterations_bar_html,
         particle_counts_html=particle_counts_html,
         settings_link_html=settings_link_html,
+        target_selection_html=target_selection_html,
         stage_label=_esc(stage["label"]),
         current_iter=_esc(stage["current_iter"] or "--"),
         current_step=_esc(stage["current_step"] or "--"),

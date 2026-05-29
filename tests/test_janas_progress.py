@@ -294,7 +294,10 @@ def test_write_progress_html_classification_session_text_only() -> None:
         )
         out = P.write_progress_html(sd)
         text = out.read_text(encoding="utf-8")
-        assert "Type: classification" in text
+        # 'Type' label is in the right card meta line; the value sits in
+        # a <strong> tag so the substring is split across the tag.
+        assert "Type:" in text
+        assert ">classification<" in text
         # No image filename should appear in the page for classification
         assert "selection_step" not in text
         assert "selection_unstarted.png" not in text
@@ -645,8 +648,10 @@ def test_settings_html_skipped_when_no_toml() -> None:
         assert not (sd / "settings.html").exists()
 
 
-def test_progress_header_includes_host_in_meta_line() -> None:
-    """Host moved from the (removed) Runtime card into the header line."""
+def test_progress_layout_has_two_columns_with_session_info_card() -> None:
+    """Two-column layout is back. Right column carries 'Session info' with
+    Type/Host/Generated and the target-selection block; the old
+    'Runtime' card with SLURM/CUDA is gone."""
     with tempfile.TemporaryDirectory() as tmp:
         sd = _make_session(
             Path(tmp),
@@ -656,9 +661,74 @@ def test_progress_header_includes_host_in_meta_line() -> None:
             ],
         )
         text = P.write_progress_html(sd).read_text(encoding="utf-8")
-        assert "Host: PC-587054" in text
-        # Runtime card heading is gone
+        # Two-column grid wrapper is back
+        assert 'class="grid grid-2"' in text
+        # New right card heading
+        assert ">Session info<" in text
+        # Host moved to the right card meta line; still in page text
+        assert "PC-587054" in text
+        # Type and Generated are in the right card now, not the header
+        assert "Type:" in text
+        # Old Runtime card heading is still gone
         assert ">Runtime<" not in text
+
+
+def test_target_selection_block_rendered_in_right_card() -> None:
+    """[[_janas_target_selection]] contents are rendered as a key/value
+    table inside a scrollable area in the right card."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir(parents=True)
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_target_selection]]\n'
+            'reference_starFile = "demo/_janas_SCI__1.00_scored_selection_2/'
+            'norm_best_8498.star"\n'
+            'reference_num_particles = 8498\n'
+            'reference_locres_ResolutionTarget = 3.42\n'
+            'last_consecutive_non_improving_selections = 1\n'
+            'percentage_particles_retained = 85.4\n'
+            'selection_number = 2\n'
+            '\n'
+            '[[_janas_selection_0]]\n'
+            'reference_num_particles = 9951\n'
+            '\n'
+            '[[_janas_selection_2]]\n'
+            'reference_num_particles = 8498\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir()
+
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+
+        # The right-card subhead is there
+        assert "Target selection" in text
+        assert "[[_janas_target_selection]]" in text
+        # Scrollable container wraps the block
+        assert 'class="scroll-area"' in text
+        # Every key surfaces in the rendered table
+        for key in (
+            "reference_starFile",
+            "reference_num_particles",
+            "reference_locres_ResolutionTarget",
+            "last_consecutive_non_improving_selections",
+            "percentage_particles_retained",
+            "selection_number",
+        ):
+            assert key in text, f"missing key: {key}"
+        # Float and int values surface verbatim
+        assert "8498" in text
+        assert "3.42" in text
+
+
+def test_target_selection_block_missing_shows_placeholder() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        # Heading is still there (it is a static piece of the right card)
+        assert "Target selection" in text
+        # Placeholder for the missing block
+        assert "No <code>[[_janas_target_selection]]</code> block yet." in text
 
 
 def test_format_elapsed_time_decomposition() -> None:
@@ -768,8 +838,12 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_settings_html_renders_booleans_with_classes),
     ("settings.html: skipped when no session_settings.toml",
         test_settings_html_skipped_when_no_toml),
-    ("progress header: Host moved into the meta line, no Runtime card",
-        test_progress_header_includes_host_in_meta_line),
+    ("progress layout: two-column grid with Session info card",
+        test_progress_layout_has_two_columns_with_session_info_card),
+    ("right card: [[_janas_target_selection]] rendered in scroll area",
+        test_target_selection_block_rendered_in_right_card),
+    ("right card: missing target block shows placeholder",
+        test_target_selection_block_missing_shows_placeholder),
     ("elapsed time: 'days, hours, mins, secs' decomposition + edge cases",
         test_format_elapsed_time_decomposition),
     ("atomic write leaves no .tmp file", test_atomic_write),

@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.1.4
+
+- Restore the two-column layout on `progress.html`. The Current stage
+  card (image + iterations bar + step info + particle counts) now
+  sits in the left column at a `1.4 fr` width, and the stage image
+  itself is capped at 360 px so it stays compact even on wide
+  monitors.
+- The right column carries a new "Session info" card with:
+  - the `Type`, `Host`, `Generated` meta line that briefly lived in
+    the page header in 2.1.3;
+  - the full contents of `[[_janas_target_selection]]` from
+    `overview.txt`, rendered as a sorted key/value table inside a
+    scrollable container so a tall selection record cannot push the
+    rest of the card off-screen.
+- The page header is trimmed back to just the H1 and the
+  `Session directory: ... Settings: ...` line.
+- The right card is intentionally left "thin-but-stable" for now —
+  more useful widgets (parameter highlights, mini-plots) can be
+  added in subsequent versions without re-shuffling the layout.
+- Three new tests: two-column layout sanity, target-selection block
+  rendered inside a `scroll-area`, placeholder when the block is
+  missing.
+
 ## 2.1.3
 
 - `progress.html` no longer auto-refreshes once the session has been
