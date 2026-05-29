@@ -669,7 +669,14 @@ def _render_particle_counts(
     if full is not None:
         parts.append(f"Full dataset: <strong>{int(full):,}</strong> particles")
     if target is not None:
-        parts.append(f"Selection: <strong>{int(target):,}</strong> particles")
+        sel = f"Selection: <strong>{int(target):,}</strong> particles"
+        try:
+            if full is not None and int(full) > 0:
+                pct = 100.0 * int(target) / int(full)
+                sel += f" ({pct:.1f}% of full dataset)"
+        except (TypeError, ValueError):
+            pass
+        parts.append(sel)
 
     if not parts and not star_rel:
         return ""
@@ -738,6 +745,7 @@ def _resolve_star_path(value: Optional[str], session_dir: Path) -> Optional[Path
 def _ensure_eulerhist(
     star_path: Optional[Path],
     png_path: Path,
+    font_scale: float = 1.0,
     timeout: int = 60,
 ) -> Optional[Path]:
     """Generate ``png_path`` via ``janas eulerHist`` if missing or stale.
@@ -766,13 +774,18 @@ def _ensure_eulerhist(
         png_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
         return None
+    cmd = [
+        "janas", "eulerHist",
+        "--i", str(star_path),
+        "--outImage", str(png_path),
+        "--show", "False",
+    ]
+    if font_scale and float(font_scale) != 1.0:
+        cmd.extend(["--fontScale", str(float(font_scale))])
     import subprocess  # noqa: WPS433
     try:
         subprocess.run(
-            ["janas", "eulerHist",
-             "--i", str(star_path),
-             "--outImage", str(png_path),
-             "--show", "False"],
+            cmd,
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -821,30 +834,38 @@ def _render_eulerhist_card(
         overview_data.get("input_starfile")
         or _read_input_star_from_settings(session_dir)
     )
-    target_star_value = overview_data.get("target_starfile") or input_star_value
+    # Do NOT fall back to the input star here: at iteration 0 the
+    # optimiser has not yet chosen any selection, and showing the same
+    # histogram twice with a misleading label is worse than hiding the
+    # bottom slot.
+    target_star_value = overview_data.get("target_starfile")
 
     input_star = _resolve_star_path(input_star_value, session_dir)
-    target_star = _resolve_star_path(target_star_value, session_dir)
+    target_star = (
+        _resolve_star_path(target_star_value, session_dir)
+        if target_star_value else None
+    )
 
     input_png = imgs_dir / "eulerhist_input.png"
     target_png = imgs_dir / "eulerhist_target.png"
 
-    _ensure_eulerhist(input_star, input_png)
-    _ensure_eulerhist(target_star, target_png)
+    # Render with a 2x font scale: the PNGs are displayed at ~60% of the
+    # card width, so the matplotlib default font would be unreadable.
+    _ensure_eulerhist(input_star, input_png, font_scale=2.0)
+    if target_star is not None:
+        _ensure_eulerhist(target_star, target_png, font_scale=2.0)
 
-    def _img_block(rel_src: str, label: str, present: bool) -> str:
-        if not present:
-            return (
-                f'<div class="eulerhist-slot">'
-                f'<div class="card-subhead">{_esc(label)}</div>'
-                f'<p class="meta">Not available yet.</p>'
-                f"</div>"
-            )
+    def _img_block(rel_src: str, label: str, present: bool, placeholder: str) -> str:
+        body = (
+            f'<img class="eulerhist-img" src="{_esc(rel_src)}" '
+            f'alt="{_esc(label)}">'
+            if present
+            else f'<p class="meta">{_esc(placeholder)}</p>'
+        )
         return (
             f'<div class="eulerhist-slot">'
             f'<div class="card-subhead">{_esc(label)}</div>'
-            f'<img class="eulerhist-img" src="{_esc(rel_src)}" '
-            f'alt="{_esc(label)}">'
+            f'{body}'
             f"</div>"
         )
 
@@ -853,12 +874,26 @@ def _render_eulerhist_card(
         "runtime/imgs/eulerhist_input.png",
         "Input star — Euler angle distribution",
         input_png.exists(),
+        "Not available yet.",
     ))
-    parts.append(_img_block(
-        "runtime/imgs/eulerhist_target.png",
-        "Current selection — Euler angle distribution",
-        target_png.exists(),
-    ))
+    if target_star is not None:
+        parts.append(_img_block(
+            "runtime/imgs/eulerhist_target.png",
+            "Current selection — Euler angle distribution",
+            target_png.exists(),
+            "Not available yet.",
+        ))
+    else:
+        # Iteration 0: no selection has been chosen yet. Render a
+        # discreet placeholder so the card still communicates "this is
+        # where the selection histogram will go" without showing a
+        # misleading duplicate of the input histogram.
+        parts.append(
+            '<div class="eulerhist-slot">'
+            '<div class="card-subhead">Current selection — Euler angle distribution</div>'
+            '<p class="meta">Waiting for the first selection iteration to complete.</p>'
+            '</div>'
+        )
     return "\n".join(parts)
 
 
@@ -939,7 +974,8 @@ h2 {{ font-size: 15px; margin: 24px 0 8px; text-transform: uppercase;
               margin: 0 auto 12px; border-radius: 4px; }}
 .eulerhist-slot {{ margin-bottom: 14px; }}
 .eulerhist-slot:last-child {{ margin-bottom: 0; }}
-.eulerhist-img {{ width: 100%; height: auto; display: block;
+.eulerhist-img {{ width: 60%; height: auto; display: block;
+                  margin: 0 auto;
                   border: 1px solid var(--border); border-radius: 4px;
                   background: var(--card); }}
 .card-subhead {{ font-size: 13px; margin: 12px 0 6px; color: var(--muted);

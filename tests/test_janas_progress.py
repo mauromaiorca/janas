@@ -891,6 +891,117 @@ def test_eulerhist_input_star_resolved_from_session_settings() -> None:
         assert "Not available yet" not in text or "Current selection" in text
 
 
+def test_eulerhist_subprocess_forwards_fontScale_when_not_default() -> None:
+    """When ``font_scale != 1.0`` the subprocess command must contain
+    '--fontScale <value>'."""
+    from unittest.mock import patch
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        star = d / "x.star"; star.write_text("hi", encoding="utf-8")
+        png = d / "out.png"
+        with patch("subprocess.run") as run_mock:
+            P._ensure_eulerhist(star, png, font_scale=2.0)
+        cmd = run_mock.call_args.args[0]
+        assert "--fontScale" in cmd
+        idx = cmd.index("--fontScale")
+        assert cmd[idx + 1] == "2.0"
+
+
+def test_eulerhist_subprocess_omits_fontScale_when_default() -> None:
+    from unittest.mock import patch
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        star = d / "x.star"; star.write_text("hi", encoding="utf-8")
+        png = d / "out.png"
+        with patch("subprocess.run") as run_mock:
+            P._ensure_eulerhist(star, png)   # default 1.0
+        cmd = run_mock.call_args.args[0]
+        assert "--fontScale" not in cmd
+
+
+def test_card_skips_current_selection_image_at_iteration_zero() -> None:
+    """Iteration 0: no [[_janas_target_selection]] in overview.txt yet —
+    the bottom slot should render a placeholder, not a duplicate of the
+    input histogram."""
+    from unittest.mock import patch
+    with tempfile.TemporaryDirectory() as tmp:
+        parent = Path(tmp)
+        sd = parent / "janas_selection_demo"
+        sd.mkdir()
+        star = parent / "input.star"; star.write_text("# fake\n", encoding="utf-8")
+        (sd / "session_settings.toml").write_text(
+            'particles = "input.star"\n', encoding="utf-8")
+        (sd / "runtime").mkdir()
+
+        def _fake_run(cmd, **kwargs):
+            try:
+                out_idx = cmd.index("--outImage") + 1
+                Path(cmd[out_idx]).write_text("png\n", encoding="utf-8")
+            except (ValueError, IndexError, OSError):
+                pass
+            class _R: returncode = 0
+            return _R()
+
+        with patch("subprocess.run", side_effect=_fake_run) as run_mock:
+            text = P.write_progress_html(sd).read_text(encoding="utf-8")
+
+        # Only ONE eulerHist invocation: the input star
+        ext_calls = [
+            call for call in run_mock.call_args_list
+            if "eulerHist" in call.args[0]
+        ]
+        assert len(ext_calls) == 1, ext_calls
+
+        # The bottom slot still renders a heading, but with a placeholder
+        # text and no <img>
+        assert "Waiting for the first selection iteration" in text
+        assert "eulerhist_target.png" not in text
+        # Top slot is normal
+        assert "eulerhist_input.png" in text
+
+
+def test_particle_counts_show_percentage_of_full_dataset() -> None:
+    """Selection: NNN particles (XX.X% of full dataset)"""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir()
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_target_selection]]\n'
+            'reference_starFile = "demo/iter1.star"\n'
+            'reference_num_particles = 5000\n'
+            'selection_number = 1\n'
+            '\n'
+            '[[_janas_selection_0]]\nreference_num_particles = 20000\n\n'
+            '[[_janas_selection_1]]\nreference_num_particles = 5000\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir()
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        # 5000 / 20000 = 25.0%
+        assert "(25.0% of full dataset)" in text
+
+
+def test_particle_counts_no_percentage_when_full_dataset_zero() -> None:
+    """Avoid ZeroDivisionError when the full-dataset count is missing/0."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir()
+        (sd / "session_settings.toml").write_text("# settings\n", encoding="utf-8")
+        (sd / "overview.txt").write_text(
+            '[[_janas_target_selection]]\n'
+            'reference_num_particles = 5000\n'
+            'selection_number = 1\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir()
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        # We still show the absolute count
+        assert "5,000" in text
+        # But no percentage line
+        assert "of full dataset" not in text
+
+
 def test_eulerhist_returns_none_when_star_missing() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
@@ -1019,6 +1130,16 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_eulerhist_skipped_when_png_newer_than_star),
     ("eulerhist: returns None when star file missing",
         test_eulerhist_returns_none_when_star_missing),
+    ("eulerhist subprocess: --fontScale forwarded when != 1.0",
+        test_eulerhist_subprocess_forwards_fontScale_when_not_default),
+    ("eulerhist subprocess: --fontScale omitted when default",
+        test_eulerhist_subprocess_omits_fontScale_when_default),
+    ("card: at iteration 0 the bottom slot is a placeholder, not an image",
+        test_card_skips_current_selection_image_at_iteration_zero),
+    ("particle counts: '(XX.X% of full dataset)' is appended",
+        test_particle_counts_show_percentage_of_full_dataset),
+    ("particle counts: skip percentage when full dataset is 0/missing",
+        test_particle_counts_no_percentage_when_full_dataset_zero),
     ("resolve_star_path: relative path uses session parent (regression)",
         test_resolve_star_path_uses_session_parent_for_relative_paths),
     ("resolve_star_path: overview-style prefix still resolves",

@@ -932,7 +932,8 @@ def _str2bool(value):
 
 
 def plotRoundEulerHist(
-    Phi, Theta, titlePlot, maxValue, numBins, outImage: PathLike = None, toShow=True
+    Phi, Theta, titlePlot, maxValue, numBins,
+    outImage: PathLike = None, toShow=True, fontScale=1.0,
 ):
     """Render the (phi, theta) histogram on a Mollweide projection.
 
@@ -968,6 +969,20 @@ def plotRoundEulerHist(
     ax = fig.add_subplot(
         111, title="pcolormesh: actual edges", aspect="equal", projection="mollweide"
     )
+    # Font sizes are derived from matplotlib defaults and scaled by
+    # ``fontScale`` so the dashboard can request a 2x-zoom when it
+    # renders the histogram in a small card (where the default font
+    # would be unreadable).
+    try:
+        fs = float(fontScale) if fontScale else 1.0
+    except (TypeError, ValueError):
+        fs = 1.0
+    if fs <= 0:
+        fs = 1.0
+    title_fs = 14.0 * fs
+    label_fs = 12.0 * fs
+    tick_fs = 10.0 * fs
+
     ax.tick_params(
         axis="x",
         direction="out",
@@ -978,6 +993,7 @@ def plotRoundEulerHist(
         grid_alpha=0.5,
         label1On=False,
     )
+    ax.tick_params(axis="y", labelsize=tick_fs)
     X, Y = np.meshgrid(xedges, yedges)
     # Cast maxValue to float here so a CLI-supplied string works as vmax.
     try:
@@ -987,13 +1003,14 @@ def plotRoundEulerHist(
     pcm = ax.pcolormesh(X, Y, H, cmap="RdBu_r", vmin=-1, vmax=vmax)
 
     # colormaps https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
-    fig.colorbar(pcm, ax=ax, extend="both")
+    cbar = fig.colorbar(pcm, ax=ax, extend="both")
+    cbar.ax.tick_params(labelsize=tick_fs)
     ax.grid(color="w", linestyle=":", linewidth=1)
-    ax.set_title(titlePlot, pad=20, fontweight="bold")
+    ax.set_title(titlePlot, pad=20, fontweight="bold", fontsize=title_fs)
     # Use the axes-level setters (not pyplot's current-axes shortcuts) so
     # the labels are still applied when fig is a bare Figure().
-    ax.set_xlabel(r"Rot Angles ($\phi$)", fontweight="bold")
-    ax.set_ylabel(r"Tilt Angles ($\theta$)", fontweight="bold")
+    ax.set_xlabel(r"Rot Angles ($\phi$)", fontweight="bold", fontsize=label_fs)
+    ax.set_ylabel(r"Tilt Angles ($\theta$)", fontweight="bold", fontsize=label_fs)
 
     if outImage:
         fig.savefig(outImage)
@@ -1049,6 +1066,16 @@ janas_eulerHist.add_argument(
          "(also yes/no, 1/0, on/off; case-insensitive). Default: true. "
          "Set to false when only saving via --outImage on a headless node.",
 )
+janas_eulerHist.add_argument(
+    "--fontScale",
+    required=False,
+    default=1.0,
+    type=float,
+    help="Multiplier applied to the title, axis-label and tick-label font "
+         "sizes. Useful when saving a small PNG (e.g. for the progress "
+         "dashboard) where the default text would be unreadable. "
+         "Default: 1.0; pass 2.0 to double every font size.",
+)
 
 
 def eulerHist(args):
@@ -1058,7 +1085,8 @@ def eulerHist(args):
     Phi = starHandler.readColumns(args.i, ["_rlnAngleRot"])
     Theta = starHandler.readColumns(args.i, ["_rlnAngleTilt"])
     plotRoundEulerHist(
-        Phi, Theta, args.title, args.maxValue, args.numBins, args.outImage, args.show
+        Phi, Theta, args.title, args.maxValue, args.numBins,
+        args.outImage, args.show, args.fontScale,
     )
 
 
