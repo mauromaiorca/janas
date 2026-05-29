@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.1.5
+
+- Fix `janas eulerHist --show False` so it actually skips
+  `plt.show()`. The argument was declared as `type=bool` in argparse,
+  which is broken: `bool("False")` returns `True` (any non-empty
+  string is truthy). The new `_str2bool` helper accepts
+  `true/false/yes/no/1/0/on/off` (case-insensitive) and raises
+  `ArgumentTypeError` for anything else.
+- Make `plotRoundEulerHist` headless-safe. When `toShow=False` the
+  figure is built via `matplotlib.figure.Figure` directly (no GUI
+  backend init), so `janas eulerHist --outImage out.png --show False`
+  now works on headless nodes and on SSH sessions with broken X11
+  forwarding (same pattern as `janas_optimizer.predict_min_particles`).
+- Cast `--maxValue` from CLI string to float before passing to
+  `vmax`.
+- New test file `tests/test_eulerhist_show_flag.py` with 6 cases.
+
 ## 2.1.4
 
 - Restore the two-column layout on `progress.html`. The Current stage
