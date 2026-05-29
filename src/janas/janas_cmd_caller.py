@@ -908,11 +908,41 @@ def plotParamValue(args):
 ##  DISPLAY
 
 
+def _str2bool(value):
+    """
+    Robust string-to-bool for argparse arguments.
+
+    ``argparse(type=bool)`` is broken: ``bool("False")`` returns ``True``
+    because any non-empty string is truthy. As a result something like
+    ``--show False`` was silently turning the flag back on. This helper
+    accepts the usual textual variants and rejects everything else with
+    a clear argparse error.
+    """
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().lower()
+    if s in ("true", "t", "yes", "y", "1", "on"):
+        return True
+    if s in ("false", "f", "no", "n", "0", "off"):
+        return False
+    import argparse
+    raise argparse.ArgumentTypeError(
+        f"Expected a boolean value (true/false), got: {value!r}"
+    )
+
+
 def plotRoundEulerHist(
     Phi, Theta, titlePlot, maxValue, numBins, outImage: PathLike = None, toShow=True
 ):
-    import matplotlib.pyplot as plt
+    """Render the (phi, theta) histogram on a Mollweide projection.
 
+    When ``toShow`` is False, the figure is built via
+    :class:`matplotlib.figure.Figure` directly, which does not initialise
+    any matplotlib GUI backend. This makes ``janas eulerHist --outImage
+    out.png --show False`` work cleanly on headless nodes and on SSH
+    sessions with broken X11 forwarding (same pattern used in
+    janas_optimizer's predict_min_particles).
+    """
     # Phi=Phi.astype(np.float)
     # Theta=Theta.astype(np.float)
     eulers1 = (Phi.to_numpy()).reshape((len(Phi),)) * np.pi / 180.0
@@ -920,34 +950,21 @@ def plotRoundEulerHist(
     eulers1 = np.mod(eulers1, 2 * np.pi) - np.pi
     eulers2 = np.mod(eulers2, np.pi) - (np.pi / 2.0)
 
-    # Get number of particles
-    # tot=len(open(tmp,'r').readlines())
-    #
-    # numBins=80
     H, xedges, yedges = np.histogram2d(
         eulers1,
         eulers2,
         numBins,
         range=[[-3.1415926535, 3.1415926535], [-1.570796, 1.570796]],
     )
-    # print (xedges, '  ' ,yedges)
-
-    # nominator, _, _ = np.histogram2d(eulers1,eulers2,bins=[xedges,yedges], weights=verification)
-    # result = nominator / denominator
-    # https://stackoverflow.com/questions/24917685/find-mean-bin-values-using-histogram2d-python
-
-    # print (xedges)
-    # print (yedges)
-    # print (type(H))
-    # print (sys.getsizeof(H[1]))
-    # print (H[1])
-    # for jj in range (0,len(H,0)):
-    #    for ii in range (0,len(H,1)):
-    #        print (H[jj][ii])
-    # print (H)
-    # return
     H = H.T
-    fig = plt.figure(figsize=(10, 5))
+
+    if toShow:
+        import matplotlib.pyplot as plt  # noqa: WPS433
+        fig = plt.figure(figsize=(10, 5))
+    else:
+        from matplotlib.figure import Figure  # noqa: WPS433
+        fig = Figure(figsize=(10, 5))
+
     ax = fig.add_subplot(
         111, title="pcolormesh: actual edges", aspect="equal", projection="mollweide"
     )
@@ -962,21 +979,30 @@ def plotRoundEulerHist(
         label1On=False,
     )
     X, Y = np.meshgrid(xedges, yedges)
-    # pcm = ax.pcolormesh(X, Y, H, cmap='afmhot',vmin=minValue, vmax=maxValue)
-    pcm = ax.pcolormesh(X, Y, H, cmap="RdBu_r", vmin=-1, vmax=maxValue)
+    # Cast maxValue to float here so a CLI-supplied string works as vmax.
+    try:
+        vmax = float(maxValue) if maxValue is not None else None
+    except (TypeError, ValueError):
+        vmax = None
+    pcm = ax.pcolormesh(X, Y, H, cmap="RdBu_r", vmin=-1, vmax=vmax)
 
     # colormaps https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
     fig.colorbar(pcm, ax=ax, extend="both")
     ax.grid(color="w", linestyle=":", linewidth=1)
     ax.set_title(titlePlot, pad=20, fontweight="bold")
-    plt.xlabel("Rot Angles ($\phi$)", fontweight="bold")
-    plt.ylabel("Tilt Angles ($\\theta$)", fontweight="bold")
+    # Use the axes-level setters (not pyplot's current-axes shortcuts) so
+    # the labels are still applied when fig is a bare Figure().
+    ax.set_xlabel(r"Rot Angles ($\phi$)", fontweight="bold")
+    ax.set_ylabel(r"Tilt Angles ($\theta$)", fontweight="bold")
+
     if outImage:
-        plt.savefig(outImage)
+        fig.savefig(outImage)
+
     if toShow:
         plt.show()
-    # copy/paste multiple images in one
-    # https://note.nkmk.me/en/python-pillow-paste/
+        plt.close(fig)
+    # When not showing, the bare Figure is discarded on function return;
+    # no explicit plt.close() is needed because it was never managed.
 
 
 janas_eulerHist = command.add_parser(
@@ -1017,8 +1043,11 @@ janas_eulerHist.add_argument(
     "--show",
     required=False,
     default=True,
-    type=bool,
-    help="whether or not display the image (e.g. set to False if you are saving the plot and don't want to show it on the screen)",
+    type=_str2bool,
+    metavar="{true,false}",
+    help="Whether or not to display the image on screen. Accepts true/false "
+         "(also yes/no, 1/0, on/off; case-insensitive). Default: true. "
+         "Set to false when only saving via --outImage on a headless node.",
 )
 
 
