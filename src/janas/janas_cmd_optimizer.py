@@ -2423,9 +2423,11 @@ janas_progress_parser.add_argument(
          "Mutually exclusive with --session."
 )
 janas_progress_parser.add_argument(
-    "--refresh", type=int, default=10,
+    "--refresh", type=int, default=15,
     help="Seconds for the HTML <meta http-equiv='refresh'> tag. 0 disables "
-         "auto-refresh (default: 10)."
+         "auto-refresh. The dashboard also drops the meta tag automatically "
+         "once the session is marked finished, regardless of this value "
+         "(default: 15)."
 )
 janas_progress_parser.add_argument(
     "--max-events", dest="max_events", type=int, default=100,

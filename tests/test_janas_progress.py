@@ -266,7 +266,12 @@ def test_write_progress_html_creates_file_and_copies_images() -> None:
         assert "JANAS — session_x" in text or "session_x" in text
         assert "03_score_particles" in text
         assert "test-host" in text
-        assert "12345" in text  # SLURM job
+        # SLURM and CUDA fields were removed from the page (JANAS does not
+        # currently integrate with the cluster scheduler).
+        assert ">SLURM job<" not in text
+        assert ">SLURM nodes<" not in text
+        assert ">SLURM CPUs<" not in text
+        assert ">CUDA devices<" not in text
         assert "Scoring particles" in text
         assert "selection_step2.png" in text
         assert "01_randomize_halves" in text  # in timings table
@@ -321,6 +326,14 @@ def test_timing_table_uses_pass_fail_and_iteration_banding() -> None:
         # Column header
         assert "Return code" in text
         assert ">rc<" not in text  # the old short header is gone
+
+        # Elapsed time header is centred, value format is human-readable
+        assert 'class="elapsed-col">Elapsed time<' in text
+        assert ">Elapsed (s)<" not in text   # the old short header is gone
+        # Each elapsed cell is left-aligned and renders the days/hours/
+        # mins/secs decomposition (the second row had elapsed_s=55).
+        assert ">0</span> days," in text
+        assert ">55</span> secs" in text
 
         # PASS / FAIL rendering
         assert "PASS (rc=0)" in text
@@ -445,6 +458,236 @@ def test_overview_data_no_target_skips_highlight() -> None:
         assert "Selection:" not in text   # no target, no selection count
 
 
+def test_default_refresh_is_fifteen_seconds() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert '<meta http-equiv="refresh" content="15">' in text
+        assert "refreshed every 15s" in text
+
+
+def test_finished_session_disables_meta_refresh() -> None:
+    """Once the session is finished, the page should not auto-refresh."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(
+            Path(tmp),
+            events=[
+                {"event": "session_end", "status": "finished",
+                 "t_end": "2026-05-28T03:00:00Z"},
+            ],
+        )
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert "http-equiv=\"refresh\"" not in text
+        assert "session finished, auto-refresh disabled" in text
+
+
+def test_aborted_session_keeps_meta_refresh() -> None:
+    """Aborted sessions may be restarted in place, so we keep the
+    auto-refresh so the dashboard picks up the new session_start
+    event when the user retries."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(
+            Path(tmp),
+            events=[
+                {"event": "session_end", "status": "aborted",
+                 "t_end": "2026-05-28T03:00:00Z"},
+            ],
+        )
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert '<meta http-equiv="refresh" content="15">' in text
+
+
+def test_star_file_link_strips_session_dir_prefix() -> None:
+    """Paths in overview.txt typically start with the session-dir name
+    (because overview.txt is written from one level above). The link
+    in progress.html must therefore have that prefix stripped so the
+    href is relative to progress.html itself."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_example"
+        sd.mkdir(parents=True)
+        (sd / "session_settings.toml").write_text(
+            "# settings\n", encoding="utf-8"
+        )
+        (sd / "overview.txt").write_text(
+            '[[_janas_target_selection]]\n'
+            'reference_starFile = "janas_selection_example/'
+            '_janas_SCI__0.99_scored_selection_1/'
+            'norm__janas_SCI__0.99_scored_selection_1_best8498.star"\n'
+            'reference_num_particles = 8498\n'
+            'selection_number = 1\n'
+            '\n'
+            '[[_janas_selection_0]]\n'
+            'reference_num_particles = 9951\n'
+            '\n'
+            '[[_janas_selection_1]]\n'
+            'reference_num_particles = 8498\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir(parents=True)
+
+        # Parser exposes the raw value
+        data = P._read_overview_data(sd / "overview.txt")
+        assert data["target_starfile"].endswith("best8498.star")
+
+        # _starfile_relative_to_session strips the session-dir name
+        rel = P._starfile_relative_to_session(
+            data["target_starfile"], sd
+        )
+        assert rel == (
+            "_janas_SCI__0.99_scored_selection_1/"
+            "norm__janas_SCI__0.99_scored_selection_1_best8498.star"
+        )
+
+        # HTML carries an <a href=...> with the stripped path and the
+        # basename as link text
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert (
+            'href="_janas_SCI__0.99_scored_selection_1/'
+            'norm__janas_SCI__0.99_scored_selection_1_best8498.star"'
+            in text
+        )
+        assert ">norm__janas_SCI__0.99_scored_selection_1_best8498.star<" in text
+
+
+def test_star_file_link_absolute_path_passes_through() -> None:
+    rel = P._starfile_relative_to_session(
+        "/abs/path/to/file.star", Path("/tmp/janas_selection_foo")
+    )
+    assert rel == "/abs/path/to/file.star"
+
+
+def test_settings_html_generated_once_and_linked_from_progress() -> None:
+    """First call to write_progress_html generates settings.html (from
+    session_settings.toml) and the progress page links to it. A second
+    call is idempotent — the existing settings.html is not overwritten."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir(parents=True)
+        (sd / "session_settings.toml").write_text(
+            'session_name = "demo"\n'
+            'particles = "x.star"\n'
+            'mpi = "80"\n'
+            'gpu = "0 1"\n'
+            'autoSigma = "True"\n'
+            'sigma = "1.0"\n'
+            'noExternalPrograms = "True"\n',
+            encoding="utf-8",
+        )
+        (sd / "runtime").mkdir()
+
+        # First call: generates settings.html and links to it
+        P.write_progress_html(sd)
+        assert (sd / "settings.html").exists()
+        progress = (sd / "progress.html").read_text(encoding="utf-8")
+        assert 'href="settings.html"' in progress
+        # Raw TOML link should NOT be present once the HTML view exists
+        assert 'href="session_settings.toml"' not in progress
+
+        settings = (sd / "settings.html").read_text(encoding="utf-8")
+        # Page must include the key/value table and the raw TOML block
+        assert "session_name" in settings
+        assert "mpi" in settings
+        assert '<pre>' in settings
+        # The raw-TOML block is HTML-escaped, so the literal quotes show
+        # up as &quot;.
+        assert 'sigma = &quot;1.0&quot;' in settings
+
+        # Second call is idempotent: file is not overwritten
+        first_mtime = (sd / "settings.html").stat().st_mtime
+        # Sleep enough to detect mtime changes on coarse-resolution FS
+        import time as _time
+        _time.sleep(0.02)
+        P.write_progress_html(sd)
+        assert (sd / "settings.html").stat().st_mtime == first_mtime
+
+
+def test_settings_link_falls_back_to_raw_toml_when_html_absent() -> None:
+    """If somehow settings.html is missing but the .toml is there, the
+    progress header still has a clickable link, pointing to the raw
+    TOML."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "janas_selection_demo"
+        sd.mkdir(parents=True)
+        (sd / "session_settings.toml").write_text(
+            'session_name = "demo"\n', encoding="utf-8"
+        )
+        (sd / "runtime").mkdir()
+
+        # Bypass the helper that would generate settings.html — render the
+        # HTML directly
+        text = P._render_html(sd)
+        assert 'href="session_settings.toml"' in text
+        assert 'href="settings.html"' not in text
+
+
+def test_settings_html_renders_booleans_with_classes() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "session_x"
+        sd.mkdir(parents=True)
+        # Real TOML booleans (not strings)
+        (sd / "session_settings.toml").write_text(
+            'autoSigma = true\n'
+            'maskingCrop = false\n',
+            encoding="utf-8",
+        )
+        out = P.write_settings_html(sd)
+        text = out.read_text(encoding="utf-8")
+        assert 'class="bool-true">true' in text
+        assert 'class="bool-false">false' in text
+
+
+def test_settings_html_skipped_when_no_toml() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = Path(tmp) / "session_no_toml"
+        sd.mkdir(parents=True)
+        out = P.write_settings_html(sd)
+        assert out is None
+        assert not (sd / "settings.html").exists()
+
+
+def test_progress_header_includes_host_in_meta_line() -> None:
+    """Host moved from the (removed) Runtime card into the header line."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(
+            Path(tmp),
+            events=[
+                {"event": "session_start", "iteration": "0",
+                 "status": "started", "hostname": "PC-587054"},
+            ],
+        )
+        text = P.write_progress_html(sd).read_text(encoding="utf-8")
+        assert "Host: PC-587054" in text
+        # Runtime card heading is gone
+        assert ">Runtime<" not in text
+
+
+def test_format_elapsed_time_decomposition() -> None:
+    # Pure unit decomposition: total = D*86400 + H*3600 + M*60 + S
+    # 2 mins 32 secs
+    assert ">2</span> mins, <span class=\"elapsed-num\">32</span> secs" in (
+        P._format_elapsed_time(152)
+    )
+    # 1 hour exactly
+    out = P._format_elapsed_time(3600)
+    assert ">1</span> hours" in out
+    assert ">0</span> mins" in out
+    assert ">0</span> secs" in out
+    # 1 day, 2 hours, 3 mins, 4 secs = 86400 + 7200 + 180 + 4 = 93784
+    out = P._format_elapsed_time(93784)
+    assert ">1</span> days" in out
+    assert ">2</span> hours" in out
+    assert ">3</span> mins" in out
+    assert ">4</span> secs" in out
+    # Strings from CSV are accepted
+    out = P._format_elapsed_time("90")
+    assert ">1</span> mins, <span class=\"elapsed-num\">30</span> secs" in out
+    # Negative and non-numeric are handled gracefully
+    out = P._format_elapsed_time(-5)
+    assert ">0</span> secs" in out
+    assert P._format_elapsed_time("") == '<span class="meta">--</span>'
+    assert P._format_elapsed_time(None) == '<span class="meta">--</span>'
+
+
 def test_atomic_write() -> None:
     """Re-writing must not leave a stray progress.html.tmp."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -507,6 +750,28 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_overview_missing_skips_iterations_and_counts),
     ("overview.txt without [[_janas_target_selection]]: bar without highlight",
         test_overview_data_no_target_skips_highlight),
+    ("default refresh is 15 seconds",
+        test_default_refresh_is_fifteen_seconds),
+    ("finished session disables meta refresh",
+        test_finished_session_disables_meta_refresh),
+    ("aborted session keeps meta refresh",
+        test_aborted_session_keeps_meta_refresh),
+    ("STAR link: strip session-dir prefix",
+        test_star_file_link_strips_session_dir_prefix),
+    ("STAR link: absolute path is passed through",
+        test_star_file_link_absolute_path_passes_through),
+    ("settings.html: generated once + linked from progress header",
+        test_settings_html_generated_once_and_linked_from_progress),
+    ("settings link falls back to raw TOML when HTML absent",
+        test_settings_link_falls_back_to_raw_toml_when_html_absent),
+    ("settings.html: booleans rendered with bool-true/bool-false classes",
+        test_settings_html_renders_booleans_with_classes),
+    ("settings.html: skipped when no session_settings.toml",
+        test_settings_html_skipped_when_no_toml),
+    ("progress header: Host moved into the meta line, no Runtime card",
+        test_progress_header_includes_host_in_meta_line),
+    ("elapsed time: 'days, hours, mins, secs' decomposition + edge cases",
+        test_format_elapsed_time_decomposition),
     ("atomic write leaves no .tmp file", test_atomic_write),
     ("HTML escapes injected step names", test_html_is_escaped),
 ]

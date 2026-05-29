@@ -61,8 +61,11 @@ _IMG_FINISHED = "selection_finished.png"
 _IMG_STEPS = {1: "selection_step1.png", 2: "selection_step2.png",
               3: "selection_step3.png", 4: "selection_step4.png"}
 
-# Refresh cadence for the embedded <meta http-equiv="refresh">.
-DEFAULT_REFRESH_SECONDS = 10
+# Refresh cadence for the embedded <meta http-equiv="refresh">. 15s is a
+# good compromise: long enough to be cheap on the run-script hooks,
+# short enough that the browser feels responsive. When the session has
+# finished the meta tag is dropped entirely (see _render_html).
+DEFAULT_REFRESH_SECONDS = 15
 
 # Maximum number of recent events to render verbatim at the bottom of the
 # page. Configurable from the CLI via ``--max-events``.
@@ -235,11 +238,22 @@ def _read_overview_data(path: Path) -> Dict[str, Any]:
     if target_np is None and target_iter is not None:
         target_np = _get_np(selections.get(target_iter))
 
+    def _get_starfile(row: Optional[Dict[str, Any]]) -> Optional[str]:
+        if not isinstance(row, dict):
+            return None
+        v = row.get("reference_starFile")
+        return str(v) if v else None
+
+    target_star = _get_starfile(target)
+    if target_star is None and target_iter is not None:
+        target_star = _get_starfile(selections.get(target_iter))
+
     return {
         "iterations": iter_indices,
         "target_iter": target_iter,
         "full_dataset_np": full_dataset_np,
         "target_np": target_np,
+        "target_starfile": target_star,
     }
 
 
@@ -450,6 +464,32 @@ def _esc(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
+def _format_elapsed_time(value: Any) -> str:
+    """Render an elapsed-second count as ``X days, Y hours, Z mins, W secs``.
+
+    The numeric portion of each unit is wrapped in an aligned <span> so
+    successive rows visually line up: the digits are right-aligned within
+    a fixed-width inline-block of tabular-numeral text, and the unit
+    labels follow immediately. Missing or non-integer values render as
+    the literal ``--``.
+    """
+    try:
+        total = int(float(str(value)))
+    except (TypeError, ValueError):
+        return '<span class="meta">--</span>'
+    if total < 0:
+        total = 0
+    days, rem = divmod(total, 86_400)
+    hours, rem = divmod(rem, 3_600)
+    mins, secs = divmod(rem, 60)
+    return (
+        f'<span class="elapsed-num">{days}</span> days, '
+        f'<span class="elapsed-num">{hours}</span> hours, '
+        f'<span class="elapsed-num">{mins}</span> mins, '
+        f'<span class="elapsed-num">{secs}</span> secs'
+    )
+
+
 def _format_timing_rows(rows: List[Dict[str, str]], limit: int = 50) -> str:
     """Render the last ``limit`` step-timing rows as <tr> entries.
 
@@ -483,7 +523,8 @@ def _format_timing_rows(rows: List[Dict[str, str]], limit: int = 50) -> str:
             f"<tr class='{row_cls}'>"
             f"<td>{_esc(r.get('iteration', ''))}</td>"
             f"<td><code>{_esc(r.get('step', ''))}</code></td>"
-            f"<td class='num'>{_esc(r.get('elapsed_s', ''))}</td>"
+            f"<td class='elapsed-cell'>"
+            f"{_format_elapsed_time(r.get('elapsed_s', ''))}</td>"
             f"<td class='{rc_cls}'>{_esc(rc_text)}</td>"
             f"<td class='meta'>{_esc(r.get('t_start', ''))}</td>"
             "</tr>"
@@ -538,44 +579,106 @@ def _render_iterations_bar(overview_data: Dict[str, Any]) -> str:
     )
 
 
-def _render_particle_counts(overview_data: Dict[str, Any]) -> str:
-    """Render the 'Full dataset / Selection' particle-count line.
+def _starfile_relative_to_session(
+    reference_star: Optional[str],
+    session_dir: Path,
+) -> Optional[str]:
+    """
+    Convert a ``reference_starFile`` value as found in ``overview.txt``
+    into a path relative to the directory of ``progress.html`` itself
+    (so the rendered ``<a href>`` works equally well over file:// and
+    over ``python -m http.server``).
 
-    Numbers are formatted with thousand separators. If neither value is
-    available, returns the empty string so the calling template skips
-    the block entirely.
+    overview.txt is written from one level above the session directory
+    by the run script (see ``janas_cmd_session_manager``), so paths in
+    ``reference_starFile`` typically start with the session-dir name:
+
+        janas_selection_example/<tag>/best.star
+
+    progress.html lives at ``janas_selection_example/progress.html``,
+    so the leading ``janas_selection_example/`` must be stripped to
+    obtain a usable relative href: ``<tag>/best.star``.
+
+    Backslashes are normalised to forward slashes. Absolute paths and
+    paths that do not start with the session name are returned
+    unchanged. Returns None for empty/None inputs.
+    """
+    if not reference_star:
+        return None
+    s = str(reference_star).replace("\\", "/").strip()
+    if not s:
+        return None
+    # Absolute paths are taken at face value
+    if s.startswith("/"):
+        return s
+    name = session_dir.name
+    if name and s.startswith(name + "/"):
+        return s[len(name) + 1:]
+    return s
+
+
+def _render_particle_counts(
+    overview_data: Dict[str, Any],
+    session_dir: Path,
+) -> str:
+    """Render the 'Full dataset / Selection' particle-count block.
+
+    When the target selection carries a ``reference_starFile``, append
+    a clickable link below the counts. The link path is made relative
+    to the directory of ``progress.html`` (see
+    :func:`_starfile_relative_to_session`); the link text is the
+    basename only, to keep the line compact.
+
+    Numbers are rendered with thousand separators. If neither count
+    nor link is available, returns the empty string so the calling
+    template skips the block entirely.
     """
     full = overview_data.get("full_dataset_np")
     target = overview_data.get("target_np")
+    star_rel = _starfile_relative_to_session(
+        overview_data.get("target_starfile"), session_dir
+    )
+
     parts: List[str] = []
     if full is not None:
         parts.append(f"Full dataset: <strong>{int(full):,}</strong> particles")
     if target is not None:
         parts.append(f"Selection: <strong>{int(target):,}</strong> particles")
-    if not parts:
+
+    if not parts and not star_rel:
         return ""
-    return (
-        '<div class="meta particle-counts">'
-        + " · ".join(parts)
-        + "</div>"
-    )
 
-
-def _format_resources(events: List[Dict[str, Any]]) -> Dict[str, str]:
-    """Pull resource info (host, SLURM, CUDA) from the most recent events
-    that carry those keys.
-    """
-    out = {"hostname": "", "slurm_job_id": "", "slurm_nodelist": "",
-           "cuda_devices": "", "slurm_cpus": ""}
-    for e in reversed(events):
-        for k in list(out.keys()):
-            if not out[k]:
-                v = e.get(k)
-                if v:
-                    out[k] = str(v)
-        if all(out.values()):
-            break
+    out = '<div class="meta particle-counts">'
+    if parts:
+        out += " · ".join(parts)
+    if star_rel:
+        basename = star_rel.rsplit("/", 1)[-1] or star_rel
+        link = (
+            f'<a class="star-link" href="{_esc(star_rel)}" '
+            f'title="{_esc(star_rel)}">{_esc(basename)}</a>'
+        )
+        if parts:
+            out += '<br><span class="star-link-row">Selection STAR file: ' + link + "</span>"
+        else:
+            out += '<span class="star-link-row">Selection STAR file: ' + link + "</span>"
+    out += "</div>"
     return out
+
+
+def _extract_hostname(events: List[Dict[str, Any]]) -> str:
+    """Pull the hostname from the most recent event that carries it.
+
+    SLURM (job/nodes/CPUs) and CUDA_VISIBLE_DEVICES values used to be
+    surfaced too, but JANAS does not currently integrate with the
+    cluster scheduler, so they were silently empty on most installs and
+    were removed from the dashboard. They are still written to
+    ``events.ndjson`` and can be read by external tools if needed.
+    """
+    for e in reversed(events):
+        v = e.get("hostname")
+        if v:
+            return str(v)
+    return ""
 
 
 _HTML_TEMPLATE = """\
@@ -631,6 +734,16 @@ tr.iter-even td {{ background: var(--card); }}
 .particle-counts {{ margin-top: 10px; padding-top: 8px;
                     border-top: 1px solid var(--border); }}
 .particle-counts strong {{ color: var(--fg); }}
+.star-link {{ color: var(--accent); text-decoration: none;
+              font-family: SFMono-Regular, Menlo, Consolas, monospace;
+              font-size: 12px; word-break: break-all; }}
+.star-link:hover {{ text-decoration: underline; }}
+.star-link-row {{ display: inline-block; margin-top: 4px; }}
+th.elapsed-col {{ text-align: center; }}
+td.elapsed-cell {{ text-align: left; white-space: nowrap;
+                   font-variant-numeric: tabular-nums; }}
+.elapsed-num {{ display: inline-block; min-width: 1.6em;
+                text-align: right; font-variant-numeric: tabular-nums; }}
 pre {{ background: #f3f4f6; padding: 12px; border-radius: 6px;
        overflow: auto; font-size: 12px; line-height: 1.4;
        max-height: 320px; }}
@@ -640,39 +753,27 @@ code {{ font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
 <body>
 
 <h1>JANAS — {session_name} <span class="badge {state}">{state_text}</span></h1>
-<p class="meta">Session directory: <code>{session_path}</code><br>
-Type: {session_kind} · Generated: {generated_at}</p>
+<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}<br>
+Type: {session_kind} · Host: {host} · Generated: {generated_at}</p>
 
-<div class="grid grid-2">
-  <div class="card">
-    <h2>Current stage</h2>
-    {stage_image_html}
-    {iterations_bar_html}
-    <div class="stage-label">{stage_label}</div>
-    <div class="meta">
-      Iteration: <strong>{current_iter}</strong> ·
-      Step: <code>{current_step}</code><br>
-      Started: {step_started}{elapsed_str}
-    </div>
-    {particle_counts_html}
+<div class="card">
+  <h2>Current stage</h2>
+  {stage_image_html}
+  {iterations_bar_html}
+  <div class="stage-label">{stage_label}</div>
+  <div class="meta">
+    Iteration: <strong>{current_iter}</strong> ·
+    Step: <code>{current_step}</code><br>
+    Started: {step_started}{elapsed_str}
   </div>
-  <div class="card">
-    <h2>Runtime</h2>
-    <table>
-      <tr><th>Host</th><td>{host}</td></tr>
-      <tr><th>SLURM job</th><td>{slurm_job}</td></tr>
-      <tr><th>SLURM nodes</th><td>{slurm_nodes}</td></tr>
-      <tr><th>SLURM CPUs</th><td>{slurm_cpus}</td></tr>
-      <tr><th>CUDA devices</th><td>{cuda_devices}</td></tr>
-    </table>
-  </div>
+  {particle_counts_html}
 </div>
 
 <h2>Step timings ({n_timings} step{plural_t}, showing last {shown_t})</h2>
 <div class="card">
 <table>
 <thead><tr>
-  <th>Iter</th><th>Step</th><th class="num">Elapsed (s)</th>
+  <th>Iter</th><th>Step</th><th class="elapsed-col">Elapsed time</th>
   <th>Return code</th><th>Started (UTC)</th>
 </tr></thead>
 <tbody>
@@ -689,8 +790,7 @@ Type: {session_kind} · Generated: {generated_at}</p>
 <h2>Recent events ({n_events_shown} of {n_events_total})</h2>
 <div class="card"><pre>{recent_events}</pre></div>
 
-<p class="meta" style="margin-top:24px">JANAS · progress.html · refreshed
-every {refresh_seconds}s.</p>
+<p class="meta" style="margin-top:24px">JANAS · progress.html · {footer_refresh_text}</p>
 
 </body>
 </html>
@@ -712,14 +812,34 @@ def _render_html(
     session_kind = _detect_session_kind(session_dir)
 
     stage = _pick_stage(events, status, session_kind)
-    resources = _format_resources(events)
+    hostname = _extract_hostname(events)
     iterations_bar_html = _render_iterations_bar(overview_data)
-    particle_counts_html = _render_particle_counts(overview_data)
+    particle_counts_html = _render_particle_counts(overview_data, session_dir)
 
-    refresh_meta = (
-        f'<meta http-equiv="refresh" content="{int(refresh_seconds)}">'
-        if refresh_seconds and int(refresh_seconds) > 0 else ""
-    )
+    # Settings link in the header — points to the user-friendly
+    # settings.html when it has been generated, otherwise hidden.
+    settings_link_html = ""
+    if (session_dir / "settings.html").exists():
+        settings_link_html = (
+            '<br>Settings: <a href="settings.html">session_settings</a>'
+        )
+    elif (session_dir / "session_settings.toml").exists():
+        # No HTML render available yet but the TOML is on disk — link to it
+        # raw so the user always has something clickable.
+        settings_link_html = (
+            '<br>Settings: <a href="session_settings.toml">'
+            'session_settings.toml</a>'
+        )
+
+    # Drop the auto-refresh once the session is finished: nothing more
+    # will be appended to the runtime artefacts so there is no point in
+    # making the browser reload. Aborted sessions still refresh because
+    # the user might restart in place and the dashboard would then need
+    # to pick up the new session_start event.
+    if refresh_seconds and int(refresh_seconds) > 0 and stage["state"] != "finished":
+        refresh_meta = f'<meta http-equiv="refresh" content="{int(refresh_seconds)}">'
+    else:
+        refresh_meta = ""
 
     if stage["image"]:
         stage_image_html = (
@@ -757,16 +877,13 @@ def _render_html(
         stage_image_html=stage_image_html,
         iterations_bar_html=iterations_bar_html,
         particle_counts_html=particle_counts_html,
+        settings_link_html=settings_link_html,
         stage_label=_esc(stage["label"]),
         current_iter=_esc(stage["current_iter"] or "--"),
         current_step=_esc(stage["current_step"] or "--"),
         step_started=_esc(stage["step_started"] or "--"),
         elapsed_str=_esc(elapsed_str),
-        host=_esc(resources["hostname"] or "--"),
-        slurm_job=_esc(resources["slurm_job_id"] or "--"),
-        slurm_nodes=_esc(resources["slurm_nodelist"] or "--"),
-        slurm_cpus=_esc(resources["slurm_cpus"] or "--"),
-        cuda_devices=_esc(resources["cuda_devices"] or "--"),
+        host=_esc(hostname or "--"),
         n_timings=len(timings),
         plural_t=("s" if len(timings) != 1 else ""),
         shown_t=n_shown,
@@ -775,13 +892,200 @@ def _render_html(
         n_events_shown=min(len(events), max_events),
         n_events_total=len(events),
         recent_events=_format_recent_events(events, max_events),
-        refresh_seconds=int(refresh_seconds) if refresh_seconds else 0,
+        footer_refresh_text=(
+            "session finished, auto-refresh disabled"
+            if stage["state"] == "finished"
+            else (
+                f"refreshed every {int(refresh_seconds)}s"
+                if refresh_seconds and int(refresh_seconds) > 0
+                else "auto-refresh disabled"
+            )
+        ),
     )
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# settings.html — once-per-session view of session_settings.toml
+# ---------------------------------------------------------------------------
+
+
+_SETTINGS_HTML_TEMPLATE = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JANAS settings — {session_name}</title>
+<style>
+:root {{
+  --fg: #1f2937; --bg: #f6f7f9; --card: #ffffff; --muted: #6b7280;
+  --border: #e5e7eb; --accent: #0ea5e9;
+}}
+* {{ box-sizing: border-box; }}
+body {{ font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, sans-serif; color: var(--fg); background: var(--bg);
+        margin: 0; padding: 24px; }}
+h1 {{ font-size: 22px; margin: 0 0 6px; }}
+h2 {{ font-size: 14px; margin: 24px 0 8px; text-transform: uppercase;
+       letter-spacing: 0.04em; color: var(--muted); }}
+.meta {{ color: var(--muted); font-size: 12px; }}
+a {{ color: var(--accent); text-decoration: none; }}
+a:hover {{ text-decoration: underline; }}
+.card {{ background: var(--card); border: 1px solid var(--border);
+         border-radius: 8px; padding: 16px; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+th, td {{ text-align: left; padding: 6px 8px;
+          border-bottom: 1px solid var(--border);
+          vertical-align: top; }}
+th.k {{ width: 28%; color: var(--muted); font-weight: 600;
+        font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
+td.v {{ font-family: SFMono-Regular, Menlo, Consolas, monospace;
+        word-break: break-all; }}
+.bool-true  {{ color: #16a34a; font-weight: 600; }}
+.bool-false {{ color: #dc2626; font-weight: 600; }}
+pre {{ background: #f3f4f6; padding: 12px; border-radius: 6px;
+       overflow: auto; font-size: 12px; line-height: 1.4;
+       max-height: 480px; }}
+</style>
+</head>
+<body>
+
+<h1>JANAS settings — {session_name}</h1>
+<p class="meta">Settings file: <code>{settings_path}</code><br>
+Generated: {generated_at} ·
+<a href="progress.html">&larr; Back to progress</a></p>
+
+<h2>Parameters</h2>
+<div class="card">
+<table>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</div>
+
+<h2>Raw TOML</h2>
+<div class="card"><pre>{raw_toml}</pre></div>
+
+</body>
+</html>
+"""
+
+
+def _format_settings_value(v: Any) -> str:
+    """Format a single TOML value for display in the settings table."""
+    if isinstance(v, bool):
+        cls = "bool-true" if v else "bool-false"
+        return f'<span class="{cls}">{str(v).lower()}</span>'
+    if isinstance(v, (list, tuple)):
+        if not v:
+            return '<span class="meta">(empty list)</span>'
+        return _esc(", ".join(str(x) for x in v))
+    if isinstance(v, dict):
+        # Nested table: render as a small inline key/value list
+        if not v:
+            return '<span class="meta">(empty table)</span>'
+        items = "; ".join(f"{_esc(str(k))} = {_esc(str(val))}" for k, val in v.items())
+        return items
+    if v is None or v == "":
+        return '<span class="meta">--</span>'
+    return _esc(str(v))
+
+
+def _render_settings_html(
+    settings_path: Path,
+    session_name: str,
+) -> str:
+    """Render ``settings.html`` for a single ``session_settings.toml`` file."""
+    try:
+        import toml as _toml  # noqa: WPS433
+    except ImportError:
+        return ""
+    try:
+        data = _toml.load(str(settings_path))
+    except (FileNotFoundError, OSError):
+        return ""
+    except Exception:  # noqa: BLE001 — toml.TomlDecodeError + wrappers
+        # Fall back to a raw <pre> rendering so the user still sees content
+        try:
+            raw = settings_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+        rows_html = (
+            '<tr><td colspan="2" class="meta">Could not parse TOML; '
+            "showing raw contents only.</td></tr>"
+        )
+        return _SETTINGS_HTML_TEMPLATE.format(
+            session_name=_esc(session_name),
+            settings_path=_esc(str(settings_path.resolve())),
+            generated_at=_esc(
+                datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            ),
+            rows_html=rows_html,
+            raw_toml=_esc(raw),
+        )
+
+    rows: List[str] = []
+    for key in sorted(data.keys()):
+        rows.append(
+            "<tr>"
+            f'<th class="k">{_esc(key)}</th>'
+            f'<td class="v">{_format_settings_value(data[key])}</td>'
+            "</tr>"
+        )
+    rows_html = "\n".join(rows) if rows else (
+        '<tr><td colspan="2" class="meta">No keys in this settings file.</td></tr>'
+    )
+
+    try:
+        raw = settings_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        raw = ""
+
+    return _SETTINGS_HTML_TEMPLATE.format(
+        session_name=_esc(session_name),
+        settings_path=_esc(str(settings_path.resolve())),
+        generated_at=_esc(
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ),
+        rows_html=rows_html,
+        raw_toml=_esc(raw),
+    )
+
+
+def write_settings_html(session_dir: Path, force: bool = False) -> Optional[Path]:
+    """Generate ``session_dir/settings.html`` once per session.
+
+    ``session_settings.toml`` is written once by ``janas_session_manager``
+    when the session is created and never modified during the run, so by
+    default this function is **idempotent**: it returns the existing path
+    and does nothing if ``settings.html`` is already there. Pass
+    ``force=True`` to overwrite (used by tests).
+
+    Returns the path of the generated file, or None when there is no
+    ``session_settings.toml`` to render.
+    """
+    session_dir = Path(session_dir)
+    settings_toml = session_dir / "session_settings.toml"
+    if not settings_toml.exists():
+        return None
+
+    out_path = session_dir / "settings.html"
+    if out_path.exists() and not force:
+        return out_path
+
+    html_text = _render_settings_html(settings_toml, session_dir.name)
+    if not html_text:
+        return None
+
+    tmp_path = session_dir / "settings.html.tmp"
+    tmp_path.write_text(html_text, encoding="utf-8")
+    os.replace(tmp_path, out_path)
+    return out_path
 
 
 def write_progress_html(
@@ -804,6 +1108,16 @@ def write_progress_html(
     # without a re-generation.
     if _detect_session_kind(session_dir) == "selection":
         _copy_stage_images(session_dir / "runtime" / "imgs")
+
+    # Generate settings.html once per session (idempotent). Done before
+    # rendering progress.html so the header can link to settings.html
+    # rather than to the raw .toml on the very first invocation.
+    try:
+        write_settings_html(session_dir)
+    except Exception:  # noqa: BLE001
+        # Best-effort: never abort the dashboard generator because of a
+        # secondary artefact.
+        pass
 
     html_text = _render_html(
         session_dir,

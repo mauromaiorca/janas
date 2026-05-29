@@ -41,12 +41,14 @@ The dashboard is a single self-contained HTML page that consumes the four artefa
 It renders five sections:
 
 - **Current stage** — a card with one of six bundled illustrations (`selection_unstarted.png`, `selection_step1.png` … `selection_step4.png`, `selection_finished.png`), picked from the most recent event. The current iteration, step name, time the step started and elapsed seconds are shown beneath the image. For `classification_session` the page is text-only (no stage illustration).
-- **Runtime** — host, SLURM job, SLURM nodes, SLURM CPUs, `CUDA_VISIBLE_DEVICES`, gathered from the most recent events that carry the keys.
+- **Host** — the hostname where the run script is executing, surfaced in the header line of the page. JANAS does not currently integrate with the cluster scheduler, so SLURM job ids, node lists and CPU counts are not rendered (they are still captured in `events.ndjson` for downstream tooling).
 - **Step timings** — last 50 rows of `step_timings.csv`. Adjacent iterations are visually banded (odd / even row backgrounds), the return-code column reads `PASS (rc=0)` in green and `FAIL (rc=N)` in red.
 - **Iteration overview** — the contents of `overview.txt` rendered verbatim in a fixed-pitch block.
 - **Recent events** — the last N records of `events.ndjson` (default 100), one per line.
 
-An `<meta http-equiv="refresh" content="10">` is embedded by default, so any browser open on the page reloads itself every 10 s.
+A companion page, **`settings.html`**, is generated next to `progress.html` from `session_settings.toml`. The progress header links to it as `Settings: session_settings`. It is a one-shot render (the settings file does not change during a run) and contains a key/value table plus the raw TOML for copy-paste. When `session_settings.toml` exists but `settings.html` has not been generated yet, the header link falls back to the raw `.toml` so the user always has something clickable.
+
+An `<meta http-equiv="refresh" content="15">` is embedded by default, so any browser open on the page reloads itself every 15 s. The meta tag is automatically dropped once the session has been marked `finished` (no further updates can arrive), so the page stops reloading on its own at the end of the run.
 
 ---
 
@@ -114,7 +116,7 @@ xdg-open <session>/progress.html
 explorer.exe <session>/progress.html
 ```
 
-The page auto-refreshes itself every 10 s, so simply leave the tab open while the run script is executing.
+The page auto-refreshes itself every 15 s, so simply leave the tab open while the run script is executing.
 
 ---
 
@@ -191,7 +193,7 @@ janas_optimizer progress [--session DIR | --overview FILE]
 |---|---|---|
 | `--session DIR` | `.` | Session directory (the one containing `overview.txt` and `runtime/`). |
 | `--overview FILE` | — | Alternative to `--session`: pass the path to `overview.txt`; the session directory is inferred from its parent. |
-| `--refresh SECONDS` | `10` | Seconds for the embedded `<meta http-equiv="refresh">`. Pass `0` to disable auto-refresh. |
+| `--refresh SECONDS` | `15` | Seconds for the embedded `<meta http-equiv="refresh">`. Pass `0` to disable auto-refresh. The tag is also dropped automatically once the session has been marked `finished`. |
 | `--max-events N` | `100` | Maximum number of records rendered in the "Recent events" section. |
 | `--quiet` | off | Suppress the `Wrote <path>` line on success. Used by the runtime-logging shell hooks. |
 

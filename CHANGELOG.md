@@ -1,5 +1,57 @@
 # Changelog
 
+## 2.1.3
+
+- `progress.html` no longer auto-refreshes once the session has been
+  marked `finished`: the `<meta http-equiv="refresh">` tag is dropped
+  and the footer reads "session finished, auto-refresh disabled".
+  Aborted sessions still refresh so the dashboard picks up a restart
+  in place.
+- Default refresh cadence changed from 10 s to 15 s
+  (`DEFAULT_REFRESH_SECONDS = 15` in code, `--refresh` default in CLI,
+  documentation kept in sync). The explicit `--refresh N` override is
+  unchanged.
+- Render a clickable link to the selected STAR file in the particle
+  counts block. Source: `reference_starFile` in
+  `[[_janas_target_selection]]` (with the fall-back to the matching
+  selection block when the target does not carry it). The path stored
+  in `overview.txt` typically starts with the session-directory name
+  (because `overview.txt` is written from one level above); the new
+  helper `_starfile_relative_to_session` strips that prefix so the
+  href is relative to `progress.html` and works equally well under
+  `file://` and under `python -m http.server`. Absolute paths and
+  paths that do not start with the session name are passed through
+  unchanged.
+- Remove the Runtime card from `progress.html` and the SLURM
+  (job/nodes/CPUs) and `CUDA_VISIBLE_DEVICES` fields it carried:
+  JANAS does not currently integrate with the cluster scheduler, so
+  on most installs those rows were empty. The hostname is now
+  surfaced inline in the page header as `Host: <name>`. The values
+  are still captured in `runtime/events.ndjson` for downstream
+  tooling.
+- New `settings.html` companion page next to `progress.html`. It is
+  rendered once per session (idempotent) from
+  `session_settings.toml`. The page presents the parameters as a
+  sorted key/value table — booleans coloured green/red, lists shown
+  comma-separated — plus the raw TOML in a `<pre>` block for
+  copy-paste. `progress.html` links to it in the header as
+  `Settings: session_settings`. When `session_settings.toml` exists
+  but `settings.html` has not been generated yet, the header link
+  falls back to the raw `.toml` so the user always has something
+  clickable.
+- Step timings table: the column header `Elapsed (s)` is renamed to
+  `Elapsed time` (centered), and each cell now reads
+  `X days, Y hours, Z mins, W secs` (left-aligned) instead of the
+  raw integer second count. The numeric portion of each unit is
+  wrapped in a fixed-width inline-block of tabular numerals so
+  successive rows visually line up.
+- Eleven new tests in total covering: the new 15 s default, the
+  meta-refresh drop on finished, the meta-refresh kept on aborted,
+  the prefix-stripped relative href, the absolute-path fall-through,
+  the settings.html generation + linking, the raw-TOML fallback link,
+  boolean rendering classes, the no-TOML skip, the host-in-header
+  move, and the elapsed-time decomposition.
+
 ## 2.1.2
 
 - Show selection-iteration progress and dataset sizes in `progress.html`,
