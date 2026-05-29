@@ -1042,7 +1042,7 @@ code {{ font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
 <body>
 
 <h1>JANAS — {session_name} <span class="badge {state}">{state_text}</span></h1>
-<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}<br>
+<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}{custom_stacks_link_html}<br>
 Type: <strong>{session_kind}</strong> ·
 Host: <strong>{host}</strong> ·
 Generated: {generated_at}</p>
@@ -1129,6 +1129,16 @@ def _render_html(
             'session_settings.toml</a>'
         )
 
+    # Link to the custom_selected_stacks companion page. The index file is
+    # created by write_progress_html (above) before this template renders,
+    # so the link is always live — even when the user has not extracted
+    # any subset yet, the page exists with an empty table.
+    custom_stacks_link_html = (
+        '<br>Custom selected stacks: '
+        '<a href="custom_selected_stacks/index.html">'
+        'custom_selected_stacks/</a>'
+    )
+
     # Drop the auto-refresh once the session is finished: nothing more
     # will be appended to the runtime artefacts so there is no point in
     # making the browser reload. Aborted sessions still refresh because
@@ -1176,6 +1186,7 @@ def _render_html(
         iterations_bar_html=iterations_bar_html,
         particle_counts_html=particle_counts_html,
         settings_link_html=settings_link_html,
+        custom_stacks_link_html=custom_stacks_link_html,
         eulerhist_html=eulerhist_html,
         stage_label=_esc(stage["label"]),
         current_iter=_esc(stage["current_iter"] or "--"),
@@ -1387,6 +1398,241 @@ def write_settings_html(session_dir: Path, force: bool = False) -> Optional[Path
     return out_path
 
 
+# ---------------------------------------------------------------------------
+# custom_selected_stacks/index.html — companion view of ad-hoc subsets
+# ---------------------------------------------------------------------------
+
+
+_CUSTOM_STACKS_HTML_TEMPLATE = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JANAS custom selected stacks — {session_name}</title>
+<style>
+:root {{
+  --fg: #1f2937; --bg: #f6f7f9; --card: #ffffff; --muted: #6b7280;
+  --border: #e5e7eb; --accent: #0ea5e9;
+}}
+* {{ box-sizing: border-box; }}
+body {{ font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, sans-serif; color: var(--fg); background: var(--bg);
+        margin: 0; padding: 24px; }}
+h1 {{ font-size: 22px; margin: 0 0 6px; }}
+h2 {{ font-size: 14px; margin: 24px 0 8px; text-transform: uppercase;
+       letter-spacing: 0.04em; color: var(--muted); }}
+.meta {{ color: var(--muted); font-size: 12px; }}
+a {{ color: var(--accent); text-decoration: none; }}
+a:hover {{ text-decoration: underline; }}
+.card {{ background: var(--card); border: 1px solid var(--border);
+         border-radius: 8px; padding: 16px; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+th, td {{ text-align: left; padding: 8px 10px;
+          border-bottom: 1px solid var(--border);
+          vertical-align: middle; }}
+th {{ background: #f9fafb; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; font-size: 12px; }}
+td.num {{ text-align: right; font-variant-numeric: tabular-nums;
+          font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
+.row-thumb {{ display: block; width: 220px; max-width: 100%;
+              height: auto; border: 1px solid var(--border);
+              border-radius: 4px; background: var(--card); }}
+.empty-row td {{ color: var(--muted); font-style: italic;
+                  text-align: center; padding: 22px 10px; }}
+.star-link {{ font-family: SFMono-Regular, Menlo, Consolas, monospace;
+              font-size: 12px; word-break: break-all; }}
+</style>
+</head>
+<body>
+
+<h1>JANAS custom selected stacks — {session_name}</h1>
+<p class="meta">Folder: <code>{folder_path}</code><br>
+Generated: {generated_at} ·
+<a href="../progress.html">&larr; Back to progress</a></p>
+
+<p class="meta">Each row corresponds to one invocation of
+<code>extract_custom_selected_stack.sh &lt;N&gt;</code> from this session.
+See <a href="../progress.html">progress.html</a> for the live session
+status, and the
+<a href="https://github.com/mauromaiorca/janas/blob/main/docs/custom_selected_stacks.md">custom selected stacks docs</a>
+for how this folder feeds JANAS-based repicking.</p>
+
+<h2>Subsets ({n_rows} entr{plural})</h2>
+<div class="card">
+<table>
+<thead><tr>
+  <th>N particles</th>
+  <th>Iteration</th>
+  <th>Full dataset</th>
+  <th>Selected subset</th>
+  <th>STAR file</th>
+</tr></thead>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</div>
+
+</body>
+</html>
+"""
+
+
+_SUBSET_DIR_RE = re.compile(r"^subset_(?P<n>\d+)_ite(?P<ite>\d+)$")
+
+
+def _discover_custom_subsets(folder: Path) -> List[Dict[str, Any]]:
+    """Return one record per ``subset_<N>_ite<ITE>`` subdirectory.
+
+    Records are sorted by (iteration, N) so the table reads from the
+    earliest selection iteration to the latest. Subdirectories whose name
+    does not match the expected pattern are silently skipped — this is the
+    same folder the user manipulates by hand, and we never want a stray
+    directory to break the page.
+    """
+    out: List[Dict[str, Any]] = []
+    try:
+        children = sorted(folder.iterdir())
+    except OSError:
+        return out
+    for child in children:
+        if not child.is_dir():
+            continue
+        m = _SUBSET_DIR_RE.match(child.name)
+        if not m:
+            continue
+        try:
+            n_particles = int(m.group("n"))
+            ite = int(m.group("ite"))
+        except ValueError:
+            continue
+        star_name = f"{child.name}.star"
+        png_name = f"{child.name}_eulerhist.png"
+        out.append({
+            "dir": child,
+            "name": child.name,
+            "n": n_particles,
+            "ite": ite,
+            "star_rel": f"{child.name}/{star_name}",
+            "star_exists": (child / star_name).exists(),
+            "png_rel": f"{child.name}/{png_name}",
+            "png_exists": (child / png_name).exists(),
+        })
+    out.sort(key=lambda r: (r["ite"], r["n"]))
+    return out
+
+
+def _render_custom_stacks_rows(
+    records: List[Dict[str, Any]],
+    full_dataset_png_rel: Optional[str],
+) -> str:
+    """Render one ``<tr>`` per subset directory.
+
+    When ``records`` is empty the table is rendered with a single
+    placeholder row so the page still shows the column headers — the user
+    asked for the index to exist (with the empty table visible) from the
+    very start of the session.
+    """
+    if not records:
+        return (
+            '<tr class="empty-row"><td colspan="5">'
+            "No custom subsets extracted yet. Run "
+            "<code>./extract_custom_selected_stack.sh &lt;N&gt;</code> "
+            "from the session directory to populate this table."
+            "</td></tr>"
+        )
+    rows: List[str] = []
+    for r in records:
+        if full_dataset_png_rel:
+            full_cell = (
+                f'<img class="row-thumb" src="{_esc(full_dataset_png_rel)}" '
+                f'alt="Full dataset Euler distribution">'
+            )
+        else:
+            full_cell = '<span class="meta">(not available yet)</span>'
+        if r["png_exists"]:
+            sub_cell = (
+                f'<img class="row-thumb" src="{_esc(r["png_rel"])}" '
+                f'alt="Euler distribution for {_esc(r["name"])}">'
+            )
+        else:
+            sub_cell = '<span class="meta">(missing)</span>'
+        if r["star_exists"]:
+            star_cell = (
+                f'<a class="star-link" href="{_esc(r["star_rel"])}">'
+                f'{_esc(r["star_rel"])}</a>'
+            )
+        else:
+            star_cell = (
+                f'<span class="star-link meta">{_esc(r["star_rel"])} '
+                "(missing)</span>"
+            )
+        rows.append(
+            "<tr>"
+            f'<td class="num">{r["n"]:,}</td>'
+            f'<td class="num">{r["ite"]}</td>'
+            f"<td>{full_cell}</td>"
+            f"<td>{sub_cell}</td>"
+            f"<td>{star_cell}</td>"
+            "</tr>"
+        )
+    return "\n".join(rows)
+
+
+def write_custom_selected_stacks_html(session_dir: Path) -> Optional[Path]:
+    """Generate ``<session>/custom_selected_stacks/index.html``.
+
+    Always creates the folder and the HTML file, even when no subsets
+    have been extracted yet — the page is meant to be linked from
+    ``progress.html`` from the very beginning of the session, so it must
+    always exist. When the folder is empty the table is rendered with a
+    placeholder row.
+
+    Returns the path of the written HTML file, or None on a filesystem
+    error (best-effort; never raises).
+    """
+    session_dir = Path(session_dir)
+    folder = session_dir / "custom_selected_stacks"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+
+    records = _discover_custom_subsets(folder)
+
+    # Reuse the full-dataset eulerhist already produced for progress.html
+    # (it is generated lazily there with --fontScale 2.0). If it is not
+    # yet available we leave the cell as "(not available yet)" — the
+    # next progress refresh will pick it up.
+    full_png = session_dir / "runtime" / "imgs" / "eulerhist_input.png"
+    full_dataset_png_rel: Optional[str] = None
+    if full_png.exists():
+        # path is relative to <session>/custom_selected_stacks/index.html
+        full_dataset_png_rel = "../runtime/imgs/eulerhist_input.png"
+
+    rows_html = _render_custom_stacks_rows(records, full_dataset_png_rel)
+
+    html_text = _CUSTOM_STACKS_HTML_TEMPLATE.format(
+        session_name=_esc(session_dir.name or str(session_dir)),
+        folder_path=_esc(str(folder.resolve())),
+        generated_at=_esc(
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ),
+        n_rows=len(records),
+        plural=("y" if len(records) == 1 else "ies"),
+        rows_html=rows_html,
+    )
+
+    out_path = folder / "index.html"
+    tmp_path = folder / "index.html.tmp"
+    try:
+        tmp_path.write_text(html_text, encoding="utf-8")
+        os.replace(tmp_path, out_path)
+    except OSError:
+        return None
+    return out_path
+
+
 def write_progress_html(
     session_dir: Path,
     refresh_seconds: int = DEFAULT_REFRESH_SECONDS,
@@ -1416,6 +1662,14 @@ def write_progress_html(
     except Exception:  # noqa: BLE001
         # Best-effort: never abort the dashboard generator because of a
         # secondary artefact.
+        pass
+
+    # Generate (or refresh) the custom_selected_stacks/index.html companion
+    # page. Done BEFORE rendering progress.html so the header link to it
+    # is always live (the index file is guaranteed to exist on disk).
+    try:
+        write_custom_selected_stacks_html(session_dir)
+    except Exception:  # noqa: BLE001
         pass
 
     html_text = _render_html(

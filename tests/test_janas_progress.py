@@ -1082,6 +1082,99 @@ def test_html_is_escaped() -> None:
 
 
 # ---------------------------------------------------------------------------
+# custom_selected_stacks/index.html
+# ---------------------------------------------------------------------------
+
+
+def _make_subset_dir(session_dir: Path, n: int, ite: int,
+                     write_star: bool = True, write_png: bool = True) -> Path:
+    folder = session_dir / "custom_selected_stacks" / f"subset_{n}_ite{ite}"
+    folder.mkdir(parents=True, exist_ok=True)
+    if write_star:
+        (folder / f"subset_{n}_ite{ite}.star").write_text(
+            "data_\nloop_\n_rlnImageName #1\nfoo.mrcs\n", encoding="utf-8"
+        )
+    if write_png:
+        # Minimal valid 1x1 PNG (just for existence checks, not a real image).
+        (folder / f"subset_{n}_ite{ite}_eulerhist.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    return folder
+
+
+def test_custom_stacks_index_html_created_empty() -> None:
+    """With no subsets on disk, the index page must still be written and
+    show the placeholder row plus the link back to progress.html."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        out = P.write_custom_selected_stacks_html(sd)
+        assert out is not None and out.exists()
+        text = out.read_text(encoding="utf-8")
+        # Empty-table placeholder row.
+        assert '<tr class="empty-row">' in text
+        assert "extract_custom_selected_stack.sh" in text
+        # The folder is created even before any subset exists.
+        assert (sd / "custom_selected_stacks").is_dir()
+        # Header link back to progress.
+        assert 'href="../progress.html"' in text
+
+
+def test_custom_stacks_index_html_lists_subsets() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        # Two subsets, different iterations and counts.
+        _make_subset_dir(sd, n=3000, ite=1)
+        _make_subset_dir(sd, n=5000, ite=2)
+        # A stray non-matching dir must be silently ignored.
+        (sd / "custom_selected_stacks" / "garbage").mkdir()
+        out = P.write_custom_selected_stacks_html(sd)
+        assert out is not None
+        text = out.read_text(encoding="utf-8")
+        # Both subsets must appear; the placeholder row must not.
+        assert "subset_3000_ite1" in text
+        assert "subset_5000_ite2" in text
+        # The placeholder ROW must be absent (the CSS class itself is OK).
+        assert '<tr class="empty-row">' not in text
+        # Numbers formatted with thousands separator.
+        assert "3,000" in text and "5,000" in text
+        # The selected-subset thumbnail references the per-subdir PNG.
+        assert 'src="subset_3000_ite1/subset_3000_ite1_eulerhist.png"' in text
+        # The STAR link uses a relative path the browser can follow.
+        assert 'href="subset_3000_ite1/subset_3000_ite1.star"' in text
+        # Stray dir not listed.
+        assert "garbage" not in text
+
+
+def test_progress_html_links_to_custom_stacks() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        out = P.write_progress_html(sd)
+        text = out.read_text(encoding="utf-8")
+        assert 'href="custom_selected_stacks/index.html"' in text
+
+
+def test_custom_stacks_index_links_back_to_progress() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        # Generate progress first so the index has the back-link to follow.
+        P.write_progress_html(sd)
+        index = sd / "custom_selected_stacks" / "index.html"
+        assert index.exists()
+        text = index.read_text(encoding="utf-8")
+        assert 'href="../progress.html"' in text
+        # Documentation pointer must also be present.
+        assert "custom_selected_stacks.md" in text
+
+
+def test_write_progress_html_creates_custom_stacks_index() -> None:
+    """write_progress_html must always materialise the companion folder
+    and index.html — even before any subset has been extracted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sd = _make_session(Path(tmp))
+        P.write_progress_html(sd)
+        assert (sd / "custom_selected_stacks").is_dir()
+        assert (sd / "custom_selected_stacks" / "index.html").exists()
+
+
+# ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
 
@@ -1164,6 +1257,16 @@ TESTS: List[Tuple[str, Callable[[], None]]] = [
         test_format_elapsed_time_decomposition),
     ("atomic write leaves no .tmp file", test_atomic_write),
     ("HTML escapes injected step names", test_html_is_escaped),
+    ("custom_selected_stacks: index.html created with empty table by default",
+        test_custom_stacks_index_html_created_empty),
+    ("custom_selected_stacks: index.html lists discovered subset_*_ite* subdirs",
+        test_custom_stacks_index_html_lists_subsets),
+    ("custom_selected_stacks: progress.html links to index.html",
+        test_progress_html_links_to_custom_stacks),
+    ("custom_selected_stacks: index.html links back to progress.html",
+        test_custom_stacks_index_links_back_to_progress),
+    ("custom_selected_stacks: write_progress_html ensures folder + index.html",
+        test_write_progress_html_creates_custom_stacks_index),
 ]
 
 

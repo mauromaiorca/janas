@@ -113,10 +113,39 @@ top-`N` best-ranked particles. From there:
   session to confirm that the subset is not pathologically anisotropic
   before launching expensive repicking jobs.
 
+## Browsing extracted subsets — `custom_selected_stacks/index.html`
+
+Alongside the per-subset folders, JANAS keeps a small companion page at
+
+```
+<session_dir>/custom_selected_stacks/index.html
+```
+
+with one row per extracted subset, showing:
+
+- **N particles** — the value of `N` passed to the extractor.
+- **Iteration** — the JANAS iteration the subset was drawn from.
+- **Full dataset** — the Euler-angle distribution of the input STAR
+  (the same histogram shown at the top of `progress.html`), for context.
+- **Selected subset** — the Euler-angle distribution of the extracted
+  subset.
+- **STAR file** — a direct link to the STAR file ready to be fed into
+  the repicker.
+
+The page is created at session setup (with an empty table and a link
+back to `progress.html`) so it is always reachable from the dashboard,
+even before any subset has been produced. Every refresh of
+`progress.html` also refreshes this index.
+
+`progress.html` contains a direct link to
+`custom_selected_stacks/index.html` in its header, next to the link to
+`settings.html`.
+
 ## Related
 
 - [Iterative particle selection](ITERATIVE_SELECTION.md) — how to obtain
   the scored selection files that this extractor consumes.
 - [Monitoring a running session](progress_dashboard.md) — the *current
   selection* card in `progress.html` shows which iteration the
-  session-root extractor currently points at.
+  session-root extractor currently points at, and the
+  *Custom selected stacks* header link opens the companion index page.

@@ -2109,6 +2109,19 @@ def new_select_session(args):
     if not os.path.exists(args.name):
         os.makedirs(args.name)
 
+    # Create the custom_selected_stacks/ companion folder and the
+    # accompanying index.html at session setup so the link from
+    # progress.html is live from the very beginning. The table starts
+    # empty and is repopulated by `janas_optimizer progress` on every
+    # refresh as the user runs the extractor.
+    try:
+        from janas.janas_progress import write_custom_selected_stacks_html
+        write_custom_selected_stacks_html(args.name)
+    except Exception:  # noqa: BLE001
+        # Best-effort: never abort session creation because of a
+        # secondary HTML artefact.
+        pass
+
     # Path for the settings file
     settings_file_path = os.path.join(args.name, "session_settings.toml")
     if not os.path.isfile(args.map):
