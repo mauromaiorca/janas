@@ -27,6 +27,7 @@ import argparse
 import csv
 import os.path
 import shutil
+import sys
 import time
 import re
 
@@ -38,6 +39,35 @@ import pandas as pd
 import seaborn as sns
 from scipy.interpolate import UnivariateSpline
 import toml
+
+
+def _safe_make_figure(*args, **kwargs):
+    """
+    ``plt.subplots()`` with a graceful fallback to the non-interactive ``Agg``
+    backend when the current backend cannot be initialised — most commonly
+    happens on remote SSH sessions with broken X11 forwarding
+    (``_tkinter.TclError: couldn't connect to display ...``). In that case
+    we switch matplotlib to ``Agg`` once and retry; subsequent plots in the
+    same process inherit the Agg backend.
+    """
+    global plt
+    try:
+        return plt.subplots(*args, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        import matplotlib  # noqa: WPS433
+        if matplotlib.get_backend().lower() == "agg":
+            raise
+        sys.stderr.write(
+            f"[janas_optimizer] interactive matplotlib backend "
+            f"'{matplotlib.get_backend()}' failed ({exc.__class__.__name__}: "
+            f"{exc}); falling back to non-interactive 'Agg' backend.\n"
+        )
+        matplotlib.use("Agg", force=True)
+        import importlib  # noqa: WPS433
+        import matplotlib.pyplot as _plt  # noqa: WPS433
+        importlib.reload(_plt)
+        plt = _plt  # rebind module-level alias
+        return plt.subplots(*args, **kwargs)
 
 # Local
 import janas.janas_core as janas_core
@@ -100,7 +130,7 @@ def predict_min_particles(
 ):
     sns.set_style("whitegrid")
     if ax is None:
-        fig, ax = plt.subplots()
+        fig, ax = _safe_make_figure()
     else:
         fig = ax.get_figure()
 
