@@ -38,6 +38,10 @@ A single selection iteration normally contains several processing steps, so each
 
 The dashboard is a single self-contained HTML page that consumes the four artefacts above. It has no external assets and uses no JavaScript, so it works from `file://` on any browser and offline.
 
+<p align="center">
+  <img src="images/example_progress.png" alt="Example progress.html dashboard for a running JANAS selection session" width="900">
+</p>
+
 It renders five sections:
 
 - **Current stage** — a card with one of six bundled illustrations (`selection_unstarted.png`, `selection_step1.png` … `selection_step4.png`, `selection_finished.png`), picked from the most recent event. The current iteration, step name, time the step started and elapsed seconds are shown beneath the image. For `classification_session` the page is text-only (no stage illustration).

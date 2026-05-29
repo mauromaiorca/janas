@@ -121,6 +121,10 @@ Alongside the per-subset folders, JANAS keeps a small companion page at
 <session_dir>/custom_selected_stacks/custom_selected_stacks.html
 ```
 
+<p align="center">
+  <img src="images/example_custom_select_stacks.png" alt="Example custom_selected_stacks.html companion page with one row per extracted subset" width="900">
+</p>
+
 with one row per extracted subset, showing:
 
 - **N particles** — the value of `N` passed to the extractor.
@@ -141,8 +145,9 @@ time `progress.html` is refreshed *and* every time you run
 row appears in the dashboard without any manual step.
 
 `progress.html` contains a direct link to
-`custom_selected_stacks/custom_selected_stacks.html` in its header, next to the link to
-`settings.html`.
+`custom_selected_stacks/custom_selected_stacks.html` inside the
+**Current stage** card, right below the *Started / Elapsed* line, so it
+is always one click away while the session is running.
 
 ## Related
 

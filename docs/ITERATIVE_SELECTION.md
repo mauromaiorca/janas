@@ -12,6 +12,8 @@ Iterative selection identifies a particle subset that aims to support a more int
 
 Rather than selecting a fixed percentage of particles, JANAS searches for the particle count that gives the most favourable local-resolution behaviour within the masked region. This allows the workflow to retain particles that contribute consistently to the reconstruction while excluding particles that reduce map quality or introduce artefacts.
 
+> 📊 **Watch a run live:** while the script is executing, the session directory always carries an up-to-date HTML dashboard (`progress.html`). See **[Monitoring a running session](progress_dashboard.md)** for how to open it locally or over SSH from a remote browser — it is the recommended way to follow what JANAS is doing.
+
 
 ## Quick start
 
@@ -52,7 +54,10 @@ This means you can safely set `--mpi` to a generous value and JANAS will pick th
 
 ## Advanced example
 
-A typical command using most of the available options:
+A typical command using most of the available options — including
+`--autoSigma`, which JANAS can use **from the very first selection** as
+long as `--map` and `--map2` are independent half-maps (or `--bootstrap`
+is set, which generates an independent pair on the fly):
 
 ```bash
 janas_session_manager new_select_session \
@@ -65,7 +70,7 @@ janas_session_manager new_select_session \
     --preGaussianBlur 1 \
     --bootstrap \
     --angpix 0.9540 \
-    --sigma 1 \
+    --autoSigma \
     --maxSelections 15 \
     --numRecs 10 \
     --numViews 350 \
@@ -75,7 +80,11 @@ janas_session_manager new_select_session \
     --adaptive_mask
 ```
 
-A second round using auto-sigma estimation from the half-maps of the previous round:
+If you would rather pin sigma explicitly (e.g. for a controlled
+comparison across runs), replace `--autoSigma` with `--sigma 1`.
+
+A subsequent round naturally reuses the half-maps of the previous round
+as the new `--map` / `--map2`:
 
 ```bash
 janas_session_manager new_select_session \
@@ -97,6 +106,77 @@ janas_session_manager new_select_session \
     --noExternalPrograms \
     --adaptive_mask
 ```
+
+### Highlights of the advanced workflow
+
+A few things in the command above are worth calling out explicitly,
+because they change the behaviour of the selection in non-obvious ways.
+
+#### Use `--assessMask` to focus the optimiser — but only on densities you trust
+
+`--assessMask` separates the **scoring region** (`--mask`, used during
+SCI) from the **assessment region** (where local resolution is
+measured to decide which subset is best). This lets you score against a
+broad mask covering the full particle while optimising the selection
+for the local resolution of a specific functional region.
+
+This is a very powerful lever, and it is exactly the reason it has to
+be used carefully. As discussed in the
+[JANAS manuscript](citation.md), the optimiser will
+**chase any signal that increases local resolution inside the assess
+mask** — including artefacts inherited from earlier processing steps.
+A good `--assessMask` should therefore enclose **only densities you are
+confident about**:
+
+- Avoid regions with obvious overfitting bumps, streaks, or other
+  reconstruction artefacts (e.g. from an over-aggressive angular
+  refinement upstream).
+- Avoid solvent / disordered regions and box edges.
+- Prefer well-resolved, structurally meaningful densities — even if
+  that means making the mask small.
+
+The same caveat applies, to a lesser extent, to `--mask`, but
+`--assessMask` is what the optimiser ultimately reads as "ground truth",
+so it is the one that benefits the most from a conservative definition.
+
+#### `--adaptive_mask`: the same caveat, amplified
+
+`--adaptive_mask` builds the assessment mask **dynamically** at every
+iteration, by carving out the highest-resolution voxels inside
+`--assessMask` (or `--mask` if no `--assessMask` is given). This is
+extremely effective at locking onto the well-resolved parts of the map,
+but it also **amplifies every problem of the parent mask**: if
+`--assessMask` includes an overfit hotspot, the adaptive mask will
+shrink onto it and the optimiser will happily race towards a fictitious
+high-resolution score.
+
+Rule of thumb: when you enable `--adaptive_mask`, audit the
+`--assessMask` (or `--mask`) you are feeding it more strictly than you
+would otherwise. The combination is the most powerful tool JANAS
+exposes and, by the same token, the easiest one to misuse.
+
+#### `--aggressive`: trade thoroughness for wall-clock time
+
+`--aggressive` makes the optimiser update the target particles from the
+current overview selection at every iteration, rather than waiting for
+the usual stability checks. The selection converges in fewer
+iterations and the run wall-clock goes down noticeably, at the cost of
+slightly less robustness against transient regressions.
+
+Use it when you need to wrap up a session quickly — for example when
+you are iterating on parameters, or when you want to launch a JANAS-
+based repicking pass (see
+[custom selected stacks](custom_selected_stacks.md)) before the end of
+the working day. For final, publication-grade selections, leaving
+`--aggressive` off is the safer default.
+
+#### Following the run
+
+Every option above changes what the optimiser does at every iteration —
+the best way to confirm that the run is doing what you expect is to
+open `progress.html` and watch the *Current stage*, the per-iteration
+overview and the live Euler-angle histograms. See
+[Monitoring a running session](progress_dashboard.md).
 
 ---
 
