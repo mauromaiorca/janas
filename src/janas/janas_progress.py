@@ -1042,7 +1042,7 @@ code {{ font-family: SFMono-Regular, Menlo, Consolas, monospace; }}
 <body>
 
 <h1>JANAS — {session_name} <span class="badge {state}">{state_text}</span></h1>
-<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}{custom_stacks_link_html}<br>
+<p class="meta">Session directory: <code>{session_path}</code>{settings_link_html}<br>
 Type: <strong>{session_kind}</strong> ·
 Host: <strong>{host}</strong> ·
 Generated: {generated_at}</p>
@@ -1058,6 +1058,7 @@ Generated: {generated_at}</p>
       Step: <code>{current_step}</code><br>
       Started: {step_started}{elapsed_str}
     </div>
+    {custom_stacks_link_html}
     {particle_counts_html}
   </div>
   <div class="card">
@@ -1132,11 +1133,13 @@ def _render_html(
     # Link to the custom_selected_stacks companion page. The index file is
     # created by write_progress_html (above) before this template renders,
     # so the link is always live — even when the user has not extracted
-    # any subset yet, the page exists with an empty table.
+    # any subset yet, the page exists with an empty table. Rendered as a
+    # standalone <div class="meta"> underneath the Started/Elapsed line of
+    # the Current stage card.
     custom_stacks_link_html = (
-        '<br>Custom selected stacks: '
+        '<div class="meta" style="margin-top:6px">Custom selected stacks: '
         '<a href="custom_selected_stacks/index.html">'
-        'custom_selected_stacks/</a>'
+        'custom_selected_stacks/</a></div>'
     )
 
     # Drop the auto-refresh once the session is finished: nothing more
